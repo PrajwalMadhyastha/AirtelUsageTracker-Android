@@ -65,53 +65,29 @@ class RouterScraper(private val context: Context) {
                                 
                                 if (!loginAttempted) {
                                     // Login page - inject credentials and navigate
-                                    Log.d(TAG, "Login page loaded, injecting credentials")
+                                    Log.d(TAG, "Login page loaded, attempting to find credentials fields...")
                                     onStatusUpdate(com.airtel.usagetracker.data.models.ScrapingStatus.LOGGING_IN)
                                     loginAttempted = true
                                     
-                                    // First, inspect the page to see what fields exist
-                                    val inspectScript = """
+                                    // Poll for elements
+                                    val pollScript = """
                                         (function() {
-                                            var inputs = document.querySelectorAll('input');
-                                            var inputInfo = [];
-                                            for (var i = 0; i < inputs.length; i++) {
-                                                inputInfo.push({
-                                                    name: inputs[i].name,
-                                                    id: inputs[i].id,
-                                                    type: inputs[i].type
-                                                });
-                                            }
-                                            return JSON.stringify(inputInfo);
-                                        })();
-                                    """.trimIndent()
-                                    
-                                    view?.evaluateJavascript(inspectScript) { inputsJson ->
-                                        Log.d(TAG, "Login page inputs: $inputsJson")
-                                        
-                                        // Now try to login with the actual field names
-                                        val loginScript = """
-                                            (function() {
-                                                // Use the actual field IDs from inspection
+                                            var attempts = 0;
+                                            var maxAttempts = 10; // 5 seconds (500ms interval)
+                                            
+                                            function checkAndLogin() {
                                                 var userField = document.getElementById('Loginuser');
                                                 var passField = document.getElementById('LoginPassword');
-                                                var passHidden = document.getElementsByName('LoginPasswordValue')[0];
                                                 
                                                 if (userField && passField) {
-                                                    // Fill in the visible fields
+                                                    // Found fields! Login.
+                                                    var passHidden = document.getElementsByName('LoginPasswordValue')[0];
+                                                    
                                                     userField.value = '$username';
                                                     passField.value = '$password';
+                                                    if (passHidden) passHidden.value = '$password';
                                                     
-                                                    // Also fill the hidden password field if it exists
-                                                    if (passHidden) {
-                                                        passHidden.value = '$password';
-                                                    }
-                                                    
-                                                    // DO NOT fill fake fields - they're honeypots
-                                                    
-                                                    // Find and click the submit button
-                                                    var submitBtn = document.getElementById('Login_ID')
-                                                                 || document.getElementsByName('Prestige_Login')[0]
-                                                                 || document.querySelector('input[type="submit"]');
+                                                    var submitBtn = document.getElementById('Login_ID') || document.getElementsByName('Prestige_Login')[0] || document.querySelector('input[type="submit"]');
                                                     
                                                     if (submitBtn) {
                                                         submitBtn.click();
@@ -124,22 +100,91 @@ class RouterScraper(private val context: Context) {
                                                         }
                                                     }
                                                     return 'no_submit_method';
-                                                } else {
-                                                    return 'fields_not_found: user=' + (userField ? 'found' : 'missing') + ', pass=' + (passField ? 'found' : 'missing');
                                                 }
+                                                
+                                                // Check for "Duplicate Administrator" or similar error text
+                                                if (document.body.innerText.indexOf('Duplicate Administrator') !== -1 ||
+                                                    document.body.innerText.indexOf('The user is currently logged') !== -1) {
+                                                    return 'session_locked';
+                                                }
+                                                
+                                                attempts++;
+                                                if (attempts < maxAttempts) {
+                                                    setTimeout(checkAndLogin, 500);
+                                                    return 'waiting';
+                                                } else {
+                                                    return 'fields_not_found';
+                                                }
+                                            }
+                                            
+                                            return checkAndLogin();
+                                        })();
+                                    """.trimIndent()
+                                    
+                                    // We can't really "poll" nicely with evaluateJavascript returning immediately.
+                                    // Instead, we'll try ONCE here with the logic above, but since we can't async wait inside evaluateJavascript easily in this context without complex bridging,
+                                    // we will use a simpler Android-side delay loop.
+                                    
+                                    var attemptCount = 0
+                                    val maxAttempts = 5
+                                    
+                                    fun tryLogin() {
+                                        val loginScript = """
+                                            (function() {
+                                                var userField = document.getElementById('Loginuser');
+                                                var passField = document.getElementById('LoginPassword');
+                                                
+                                                if (userField && passField) {
+                                                    var passHidden = document.getElementsByName('LoginPasswordValue')[0];
+                                                    userField.value = '$username';
+                                                    passField.value = '$password';
+                                                    if (passHidden) passHidden.value = '$password';
+                                                    
+                                                    var submitBtn = document.getElementById('Login_ID') || document.getElementsByName('Prestige_Login')[0] || document.querySelector('input[type="submit"]');
+                                                    if (submitBtn) submitBtn.click();
+                                                    else { var form = document.querySelector('form'); if(form) form.submit(); }
+                                                    return 'success';
+                                                }
+                                                
+                                                if (document.body.innerText.indexOf('Duplicate Administrator') !== -1) return 'error_session_locked';
+                                                
+                                                return 'retry';
                                             })();
                                         """.trimIndent()
                                         
-                                        view?.evaluateJavascript(loginScript) { loginResult ->
-                                            Log.d(TAG, "Login attempt result: $loginResult")
-                                            // After submitting login, directly navigate to data page
-                                            Log.d(TAG, "Login submitted, navigating to data page")
-                                            onStatusUpdate(com.airtel.usagetracker.data.models.ScrapingStatus.NAVIGATING)
-                                            android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
-                                                view?.loadUrl("http://$routerIp/cgi-bin/traffic_wan_frame2.cgi")
-                                            }, 1500) // Wait 1.5s for login to process
+                                        view?.evaluateJavascript(loginScript) { result ->
+                                            val status = result?.replace("\"", "") ?: "retry"
+                                            Log.d(TAG, "Login attempt ${attemptCount + 1}: $status")
+                                            
+                                            if (status == "success") {
+                                                 Log.d(TAG, "Login submitted, navigating to data page")
+                                                 onStatusUpdate(com.airtel.usagetracker.data.models.ScrapingStatus.NAVIGATING)
+                                                 android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                                                     view?.loadUrl("http://$routerIp/cgi-bin/traffic_wan_frame2.cgi")
+                                                 }, 1500)
+                                            } else if (status == "error_session_locked") {
+                                                Log.e(TAG, "Router Session Locked")
+                                                if (!isResumed) {
+                                                    isResumed = true
+                                                    webView.destroy()
+                                                    continuation.resumeWithException(Exception("Router busy. Please wait or reboot router."))
+                                                }
+                                            } else {
+                                                if (attemptCount < maxAttempts) {
+                                                    attemptCount++
+                                                    android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                                                        tryLogin()
+                                                    }, 1000) // Retry every 1s
+                                                } else {
+                                                     Log.d(TAG, "Login fields not found after retries. Trying direct navigation...")
+                                                     // Fallback: maybe we are already logged in?
+                                                     view?.loadUrl("http://$routerIp/cgi-bin/traffic_wan_frame2.cgi")
+                                                }
+                                            }
                                         }
                                     }
+                                    
+                                    tryLogin()
                                 }
                             }
                             
