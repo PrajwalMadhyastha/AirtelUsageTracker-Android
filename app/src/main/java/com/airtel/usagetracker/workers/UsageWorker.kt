@@ -19,6 +19,11 @@ class UsageWorker(
         val repository = UsageRepository(applicationContext)
         
         return try {
+            if (!repository.checkIsOnboardingCompleted()) {
+                Log.d(TAG, "Skipping background work: Onboarding not completed")
+                return Result.success()
+            }
+
             val result = repository.fetchAndUpdateUsage()
             
             if (result.isSuccess) {

@@ -14,6 +14,8 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.airtel.usagetracker.data.UsageRepository
 import com.airtel.usagetracker.ui.theme.AirtelUsageTrackerTheme
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Settings
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -27,7 +29,7 @@ class MainActivity : ComponentActivity() {
                     factory = UsageViewModelFactory(repository)
                 )
                 
-                DashboardScreen(viewModel)
+                AppNavHost(viewModel = viewModel)
             }
         }
     }
@@ -35,12 +37,17 @@ class MainActivity : ComponentActivity() {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun DashboardScreen(viewModel: UsageViewModel) {
+fun DashboardScreen(
+    viewModel: UsageViewModel,
+    onNavigateToSettings: () -> Unit
+) {
     val usageData by viewModel.usageData.collectAsState()
     val config by viewModel.routerConfig.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
     val errorMessage by viewModel.errorMessage.collectAsState()
     val scrapingStatus by viewModel.scrapingStatus.collectAsState()
+    
+    val isOnboardingCompleted by viewModel.isOnboardingCompleted.collectAsState()
     
     Scaffold(
         topBar = {
@@ -49,7 +56,12 @@ fun DashboardScreen(viewModel: UsageViewModel) {
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.primaryContainer,
                     titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer
-                )
+                ),
+                actions = {
+                    IconButton(onClick = onNavigateToSettings) {
+                        Icon(Icons.Default.Settings, contentDescription = "Settings")
+                    }
+                }
             )
         }
     ) { paddingValues ->
@@ -179,7 +191,7 @@ fun DashboardScreen(viewModel: UsageViewModel) {
             Spacer(modifier = Modifier.height(16.dp))
             
             Text(
-                text = "Background updates every 15 minutes",
+                text = "Background updates every ${viewModel.syncIntervalHours.collectAsState(initial = 4).value} hours",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -205,7 +217,7 @@ fun DebugPanel(viewModel: UsageViewModel) {
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "🔍 Debug Info",
+                    text = "Debug Info",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold
                 )

@@ -6,8 +6,10 @@ import com.airtel.usagetracker.data.UsageRepository
 import com.airtel.usagetracker.data.models.RouterConfig
 import com.airtel.usagetracker.data.models.UsageData
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 class UsageViewModel(private val repository: UsageRepository) : ViewModel() {
@@ -32,12 +34,35 @@ class UsageViewModel(private val repository: UsageRepository) : ViewModel() {
 
 
     
+    // Preferences
+    val isOnboardingCompleted: StateFlow<Boolean> = repository.isOnboardingCompleted
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+        
+    val syncIntervalHours: StateFlow<Int> = repository.syncIntervalHours
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 4)
+
+    val isAutoSyncEnabled: StateFlow<Boolean> = repository.isAutoSyncEnabled
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
+
     init {
-        refreshUsageData()
+        // Only refresh if onboarding is completed
+        viewModelScope.launch {
+            isOnboardingCompleted.collect { completed ->
+                if (completed) {
+                    refreshUsageData()
+                }
+            }
+        }
     }
     
     fun refreshUsageData() {
         viewModelScope.launch {
+            if (!repository.isWifiConnected()) {
+                _errorMessage.value = "Not connected to WiFi"
+                _scrapingStatus.value = com.airtel.usagetracker.data.models.ScrapingStatus.ERROR
+                return@launch
+            }
+
             _isLoading.value = true
             _errorMessage.value = null
             _scrapingStatus.value = com.airtel.usagetracker.data.models.ScrapingStatus.CONNECTING
@@ -71,5 +96,25 @@ class UsageViewModel(private val repository: UsageRepository) : ViewModel() {
     fun updateRouterConfig(config: RouterConfig) {
         repository.saveRouterConfig(config)
         _routerConfig.value = config
+    }
+
+    fun completeOnboarding() {
+        viewModelScope.launch {
+            repository.setOnboardingCompleted(true)
+            // Initial sync on onboarding complete
+            refreshUsageData()
+        }
+    }
+
+    fun setSyncInterval(hours: Int) {
+        viewModelScope.launch {
+            repository.setSyncInterval(hours)
+        }
+    }
+
+    fun setAutoSyncEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            repository.setAutoSyncEnabled(enabled)
+        }
     }
 }

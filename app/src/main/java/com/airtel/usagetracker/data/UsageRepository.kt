@@ -12,6 +12,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -23,11 +24,84 @@ class UsageRepository(private val context: Context) {
     private val prefs: SharedPreferences = 
         context.getSharedPreferences("usage_data", Context.MODE_PRIVATE)
     
+    private val userPreferences = UserPreferences(context)
     private val scraper = RouterScraper(context)
     
     private val _scrapingStatus = MutableStateFlow(ScrapingStatus.IDLE)
     val scrapingStatus: StateFlow<ScrapingStatus> = _scrapingStatus.asStateFlow()
 
+    // Expose preferences
+    val isOnboardingCompleted = userPreferences.isOnboardingCompleted
+    val syncIntervalHours = userPreferences.syncIntervalHours
+    val isAutoSyncEnabled = userPreferences.isAutoSyncEnabled
+
+    suspend fun setOnboardingCompleted(completed: Boolean) {
+        userPreferences.setOnboardingCompleted(completed)
+    }
+
+    suspend fun setSyncInterval(hours: Int) {
+        userPreferences.setSyncInterval(hours)
+        scheduleBackgroundWork(hours)
+    }
+
+    suspend fun setAutoSyncEnabled(enabled: Boolean) {
+        userPreferences.setAutoSyncEnabled(enabled)
+        if (enabled) {
+            // Re-schedule with current interval
+            var currentInterval = 4
+            try {
+                userPreferences.syncIntervalHours.collect { 
+                    currentInterval = it
+                    throw Exception("ValueFound")
+                }
+            } catch (e: Exception) {
+                if (e.message != "ValueFound") throw e
+            }
+            scheduleBackgroundWork(currentInterval)
+        } else {
+            cancelBackgroundWork()
+        }
+    }
+
+    suspend fun checkIsOnboardingCompleted(): Boolean {
+        var completed = false
+        try {
+            userPreferences.isOnboardingCompleted.collect {
+                completed = it
+                throw Exception("ValueFound")
+            }
+        } catch (e: Exception) {
+            if (e.message != "ValueFound") throw e
+        }
+        return completed
+    }
+
+    private fun scheduleBackgroundWork(intervalHours: Int) {
+        Log.d(TAG, "Scheduling background work every $intervalHours hours")
+        val workManager = androidx.work.WorkManager.getInstance(context)
+        
+        val constraints = androidx.work.Constraints.Builder()
+            .setRequiredNetworkType(androidx.work.NetworkType.UNMETERED) // WiFi only
+            .setRequiresBatteryNotLow(true)
+            .build()
+            
+        val workRequest = androidx.work.PeriodicWorkRequestBuilder<com.airtel.usagetracker.workers.UsageWorker>(
+            intervalHours.toLong(), java.util.concurrent.TimeUnit.HOURS
+        )
+            .setConstraints(constraints)
+            .build()
+            
+        workManager.enqueueUniquePeriodicWork(
+            "usage_tracker_work",
+            androidx.work.ExistingPeriodicWorkPolicy.UPDATE,
+            workRequest
+        )
+    }
+
+    private fun cancelBackgroundWork() {
+        Log.d(TAG, "Cancelling background work")
+        androidx.work.WorkManager.getInstance(context).cancelUniqueWork("usage_tracker_work")
+    }
     
     fun getUsageData(): UsageData {
         return UsageData(
@@ -167,5 +241,12 @@ class UsageRepository(private val context: Context) {
     private fun getCurrentTimestamp(): String {
         val dateFormat = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
         return dateFormat.format(Date())
+    }
+
+    fun isWifiConnected(): Boolean {
+        val connectivityManager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as android.net.ConnectivityManager
+        val network = connectivityManager.activeNetwork ?: return false
+        val capabilities = connectivityManager.getNetworkCapabilities(network) ?: return false
+        return capabilities.hasTransport(android.net.NetworkCapabilities.TRANSPORT_WIFI)
     }
 }
