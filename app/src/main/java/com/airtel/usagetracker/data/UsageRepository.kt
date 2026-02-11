@@ -27,6 +27,10 @@ class UsageRepository(private val context: Context) {
     private val userPreferences = UserPreferences(context)
     private val scraper = RouterScraper(context)
     
+    // Database
+    private val database = com.airtel.usagetracker.data.db.AppDatabase.getDatabase(context)
+    private val usageDao = database.usageDao()
+    
     private val _scrapingStatus = MutableStateFlow(ScrapingStatus.IDLE)
     val scrapingStatus: StateFlow<ScrapingStatus> = _scrapingStatus.asStateFlow()
 
@@ -37,6 +41,10 @@ class UsageRepository(private val context: Context) {
 
     suspend fun setOnboardingCompleted(completed: Boolean) {
         userPreferences.setOnboardingCompleted(completed)
+        if (completed) {
+            // Attempt migration when onboarding is completed (or just strictly on first run)
+            migrateLegacyData()
+        }
     }
 
     suspend fun setSyncInterval(hours: Int) {
@@ -113,6 +121,34 @@ class UsageRepository(private val context: Context) {
         )
     }
     
+    // Expose history flow
+    fun getUsageHistory() = usageDao.getAllUsage()
+    
+    // Migration: specific method to move SP data to DB if DB is empty
+    suspend fun migrateLegacyData() {
+        withContext(Dispatchers.IO) {
+            val count = try {
+                usageDao.getAllUsage().first().size
+            } catch (e: Exception) { 0 }
+            
+            if (count == 0) {
+                val currentData = getUsageData() 
+                if (currentData.totalBytesCum > 0) {
+                    Log.d(TAG, "Migrating legacy data to Room DB")
+                    usageDao.insert(
+                         com.airtel.usagetracker.data.db.UsageEntity(
+                            timestamp = System.currentTimeMillis(),
+                            txBytes = currentData.lastTx,
+                            rxBytes = currentData.lastRx,
+                            totalBytes = currentData.totalBytesCum,
+                            uptimeSeconds = currentData.lastUptime
+                        )
+                    )
+                }
+            }
+        }
+    }
+    
     private fun saveUsageData(data: UsageData) {
         prefs.edit().apply {
             putLong("last_tx", data.lastTx)
@@ -149,6 +185,9 @@ class UsageRepository(private val context: Context) {
     
     suspend fun fetchAndUpdateUsage(): Result<UsageData> = withContext(Dispatchers.IO) {
         try {
+            // Try migration first just in case it was missed
+            migrateLegacyData()
+            
             val config = getRouterConfig()
             val previousData = getUsageData()
             
@@ -169,6 +208,17 @@ class UsageRepository(private val context: Context) {
             
             val updatedData = updateUsageData(scrapedData, previousData)
             saveUsageData(updatedData)
+            
+            // Insert into Room DB
+            usageDao.insert(
+                com.airtel.usagetracker.data.db.UsageEntity(
+                    timestamp = System.currentTimeMillis(),
+                    txBytes = scrapedData.tx,
+                    rxBytes = scrapedData.rx,
+                    totalBytes = updatedData.totalBytesCum,
+                    uptimeSeconds = scrapedData.uptime
+                )
+            )
             
             Log.d(TAG, "Updated usage: ${updatedData.toGigabytes()} GB")
             
@@ -247,6 +297,7 @@ class UsageRepository(private val context: Context) {
         val connectivityManager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as android.net.ConnectivityManager
         val network = connectivityManager.activeNetwork ?: return false
         val capabilities = connectivityManager.getNetworkCapabilities(network) ?: return false
-        return capabilities.hasTransport(android.net.NetworkCapabilities.TRANSPORT_WIFI)
+        return capabilities.hasTransport(android.net.NetworkCapabilities.TRANSPORT_WIFI) ||
+               capabilities.hasTransport(android.net.NetworkCapabilities.TRANSPORT_ETHERNET)
     }
 }

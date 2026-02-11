@@ -1,121 +1,87 @@
 # Airtel Usage Tracker - Android App
 
-A native Android app to track Airtel router data usage, designed to run 24/7 on an old Android phone.
+A modern, native Android application designed to track data usage from your Airtel Xstream Fiber router. Built with **Jetpack Compose** and **WorkManager**, it runs efficiently in the background to ensure you never cross your FUP limit uniquely.
 
 ## Features
 
-- ✅ **Automatic Background Tracking**: Polls router every 15 minutes via WorkManager
-- ✅ **Reboot-Safe**: Uptime-based detection prevents data loss during router reboots
-- ✅ **Material 3 UI**: Clean, modern dashboard with usage stats and progress bar
-- ✅ **WebView Scraping**: No external dependencies, uses built-in WebView
-- ✅ **Persistent Storage**: SharedPreferences for lightweight data storage
+- **Smart Onboarding**: specific guided wizard to help you set up router credentials and verify connectivity immediately.
+- **Real-time Dashboard**: 
+    - Visualizes usage with a clean progress bar.
+    - Displays total data consumed, remaining data, and percentage used.
+    - Shows "Last Updated" timestamp for confidence.
+- **Configurable Sync**: 
+    - Choose how often to update data (e.g., every 4, 6, or 12 hours).
+    - **Battery Efficient**: Updates only occur when connected to **WiFi** and battery is not low.
+- **Robust Background Tracking**: 
+    - Uses `WorkManager` for reliable periodic fetching.
+    - **Reboot Detection**: Smart logic detects router restarts to ensure accurate cumulative billing cycle usage.
+- **Manual Controls**: 
+    - "Refresh Now" button with intelligent network checks.
+    - Update router IP/Username/Password anytime from Settings.
+    - Toggle Auto-Sync on/off.
 
-## Setup Instructions
+## Tech Stack
 
-### 1. Open in Android Studio
-1. Copy the project to `/Users/prajw/StudioProjects/AirtelUsageTracker`
-2. Open Android Studio
-3. Select "Open an Existing Project"
-4. Navigate to the project folder
+- **Language**: Kotlin
+- **UI Framework**: Jetpack Compose (Material 3)
+- **Navigation**: Navigation Compose
+- **Background Tasks**: WorkManager
+- **Persistence**: 
+    - `DataStore Preferences` (User Settings)
+    - `SharedPreferences` (Router Config, Legacy)
+- **Networking**: Custom HTML Scraping (Jsoup/WebView logic)
 
-### 2. Configure Router Credentials
-The app uses default credentials:
-- **Router IP**: 192.168.1.1
-- **Username**: admin
-- **Password**: admin
-- **FUP Limit**: 3333 GB
+## Setup & Installation
 
-To change these, you can either:
-- Modify the defaults in `RouterConfig` data class
-- Or add a Settings screen (future enhancement)
+### Prerequisites
+- JDK 17+
+- Android Studio Ladybug or newer
+- An Android device (Android 8.0+ recommended) connected to your Airtel Router's WiFi.
 
-### 3. Build & Install
-1. Connect your old Android phone via USB
-2. Enable Developer Options and USB Debugging on the phone
-3. In Android Studio, click **Run** (green play button)
-4. Select your device
-5. The app will install and launch
+### 1. Clone & Open
+1. Clone the repository or copy project files to your machine.
+2. Open **Android Studio**.
+3. Select **Open** and navigate to the project directory (`/Users/prajw/StudioProjects/AirtelUsageTracker`).
 
-### 4. Keep Phone Plugged In
-- Keep the phone plugged in 24/7
-- The app will run in the background
-- WorkManager ensures periodic updates even if the app is closed
+### 2. Build & Run
+1. Connect your Android device via USB or WiFi Debugging.
+2. Click the **Run** ▶️ button in Android Studio.
+3. The app will install and launch automatically.
 
-## How It Works
+### 3. First-Time Setup (Onboarding)
+1. **Welcome Screen**: ensures you are connected to WiFi.
+2. **Router Setup**: 
+   - Default IP: `192.168.1.1`
+   - Default User/Pass: `admin` / `admin`
+   - **Test Connection**: Tap to verify credentials before proceeding.
+3. **Sync Preferences**: Select your preferred update interval (Default: 4 hours).
 
-### Architecture
-```
-MainActivity (Compose UI)
-    ↓
-UsageViewModel (State Management)
-    ↓
-UsageRepository (Business Logic)
-    ↓
-RouterScraper (WebView Scraping)
-    ↓
-SharedPreferences (Storage)
+## Architecture
 
-UsageWorker (Background) → UsageRepository
-```
-
-### Reboot Detection
-The app tracks router uptime. When uptime decreases:
-1. Detects router reboot
-2. Does NOT add previous counters (already counted)
-3. Resets baseline to new counter values
-4. Prevents double-counting
-
-### Background Service
-- **WorkManager** schedules periodic tasks every 15 minutes
-- Survives app restarts and phone reboots
-- Requires network connectivity
-
-## Project Structure
-
-```
-app/
-├── src/main/
-│   ├── java/com/airtel/usagetracker/
-│   │   ├── data/
-│   │   │   ├── models/Models.kt          # Data classes
-│   │   │   ├── RouterScraper.kt          # WebView scraping
-│   │   │   └── UsageRepository.kt        # Business logic
-│   │   ├── workers/
-│   │   │   └── UsageWorker.kt            # Background task
-│   │   ├── ui/
-│   │   │   ├── MainActivity.kt           # Main screen
-│   │   │   ├── UsageViewModel.kt         # ViewModel
-│   │   │   └── theme/                    # Material theme
-│   │   └── UsageTrackerApp.kt            # Application class
-│   ├── AndroidManifest.xml
-│   └── res/                              # Resources
-└── build.gradle.kts
+```mermaid
+graph TD
+    A[MainActivity] --> B{Onboarding Completed?}
+    B -- No --> C[OnboardingWizard]
+    B -- Yes --> D[DashboardScreen]
+    
+    C --> E[Save Credentials & Prefs]
+    E --> D
+    
+    D --> F[UsageViewModel]
+    D --> G[SettingsScreen]
+    
+    F --> H[UsageRepository]
+    
+    I[WorkManager] --> H
+    H --> J[RouterScraper]
+    J --> K((Airtel Router))
 ```
 
-## Troubleshooting
+## Important Notes
 
-### App Not Updating in Background
-1. Go to Settings → Apps → Airtel Usage Tracker
-2. Battery → Unrestricted
-3. Disable battery optimization for this app
-
-### WebView Not Loading
-- Ensure `usesCleartextTraffic="true"` in AndroidManifest (already set)
-- Check router IP is correct
-- Verify phone is on same WiFi network as router
-
-### Data Not Persisting
-- Check SharedPreferences in Device File Explorer
-- Path: `/data/data/com.airtel.usagetracker/shared_prefs/usage_data.xml`
-
-## Future Enhancements
-
-- [ ] Settings screen for router config
-- [ ] Notifications when approaching FUP limit
-- [ ] Home screen widget
-- [ ] Export usage history to CSV
-- [ ] Charts/graphs for usage trends
+- **Battery Optimization**: For 24/7 background tracking on some devices (Samsung, Xiaomi, OnePlus), you may need to set the app battery usage to **"Unrestricted"** in system settings to prevent the OS from killing the background worker.
+- **Router Compatibility**: Designed for standard Airtel Xstream Fiber routers (e.g., Nokia, ZTE, Huawei) accessible via `192.168.1.1`.
 
 ## License
 
-MIT License - Feel free to modify and use!
+MIT License. Free to use and modify!

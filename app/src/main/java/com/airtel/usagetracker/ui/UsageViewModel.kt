@@ -9,6 +9,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -35,8 +36,9 @@ class UsageViewModel(private val repository: UsageRepository) : ViewModel() {
 
     
     // Preferences
-    val isOnboardingCompleted: StateFlow<Boolean> = repository.isOnboardingCompleted
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+    val isOnboardingCompleted: StateFlow<Boolean?> = repository.isOnboardingCompleted
+        .map { it } // No-op to match type if needed, but repository returns Flow<Boolean>
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
         
     val syncIntervalHours: StateFlow<Int> = repository.syncIntervalHours
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 4)
@@ -44,11 +46,15 @@ class UsageViewModel(private val repository: UsageRepository) : ViewModel() {
     val isAutoSyncEnabled: StateFlow<Boolean> = repository.isAutoSyncEnabled
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
 
+    // Historical Data
+    val usageHistory: StateFlow<List<com.airtel.usagetracker.data.db.UsageEntity>> = repository.getUsageHistory()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
     init {
         // Only refresh if onboarding is completed
         viewModelScope.launch {
             isOnboardingCompleted.collect { completed ->
-                if (completed) {
+                if (completed == true) {
                     refreshUsageData()
                 }
             }

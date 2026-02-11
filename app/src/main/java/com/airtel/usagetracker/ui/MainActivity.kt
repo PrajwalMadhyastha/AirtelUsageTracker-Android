@@ -29,7 +29,19 @@ class MainActivity : ComponentActivity() {
                     factory = UsageViewModelFactory(repository)
                 )
                 
-                AppNavHost(viewModel = viewModel)
+                val isOnboardingCompleted by viewModel.isOnboardingCompleted.collectAsState()
+                
+                if (isOnboardingCompleted == null) {
+                    // Loading state
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator()
+                    }
+                } else {
+                    AppNavHost(
+                        viewModel = viewModel,
+                        startDestination = if (isOnboardingCompleted == true) Screen.Dashboard.route else Screen.Onboarding.route
+                    )
+                }
             }
         }
     }
@@ -46,8 +58,6 @@ fun DashboardScreen(
     val isLoading by viewModel.isLoading.collectAsState()
     val errorMessage by viewModel.errorMessage.collectAsState()
     val scrapingStatus by viewModel.scrapingStatus.collectAsState()
-    
-    val isOnboardingCompleted by viewModel.isOnboardingCompleted.collectAsState()
     
     Scaffold(
         topBar = {
