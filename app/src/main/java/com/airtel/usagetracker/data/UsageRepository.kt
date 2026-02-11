@@ -6,8 +6,12 @@ import android.util.Log
 import com.airtel.usagetracker.BuildConfig
 import com.airtel.usagetracker.data.models.RouterConfig
 import com.airtel.usagetracker.data.models.ScrapedData
+import com.airtel.usagetracker.data.models.ScrapingStatus
 import com.airtel.usagetracker.data.models.UsageData
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -20,6 +24,10 @@ class UsageRepository(private val context: Context) {
         context.getSharedPreferences("usage_data", Context.MODE_PRIVATE)
     
     private val scraper = RouterScraper(context)
+    
+    private val _scrapingStatus = MutableStateFlow(ScrapingStatus.IDLE)
+    val scrapingStatus: StateFlow<ScrapingStatus> = _scrapingStatus.asStateFlow()
+
     
     fun getUsageData(): UsageData {
         return UsageData(
@@ -61,18 +69,28 @@ class UsageRepository(private val context: Context) {
         }
     }
     
+    private var lastDebugInfo = com.airtel.usagetracker.data.models.DebugInfo()
+    
+    fun getDebugInfo(): com.airtel.usagetracker.data.models.DebugInfo = lastDebugInfo
+    
     suspend fun fetchAndUpdateUsage(): Result<UsageData> = withContext(Dispatchers.IO) {
         try {
             val config = getRouterConfig()
             val previousData = getUsageData()
             
             Log.d(TAG, "Fetching router data...")
+            _scrapingStatus.value = ScrapingStatus.LOADING_PAGE
+            
             val scrapedData = scraper.scrapeRouterData(
                 config.routerIp,
                 config.username,
                 config.password
-            )
+            ) { status ->
+                // Status callback from scraper
+                _scrapingStatus.value = status
+            }
             
+            _scrapingStatus.value = ScrapingStatus.PARSING
             Log.d(TAG, "Scraped: TX=${scrapedData.tx}, RX=${scrapedData.rx}, Uptime=${scrapedData.uptime}s")
             
             val updatedData = updateUsageData(scrapedData, previousData)
@@ -80,9 +98,33 @@ class UsageRepository(private val context: Context) {
             
             Log.d(TAG, "Updated usage: ${updatedData.toGigabytes()} GB")
             
+            // Update debug info
+            val rebootDetected = scrapedData.uptime < previousData.lastUptime
+            val deltaTx = if (rebootDetected) 0 else scrapedData.tx - previousData.lastTx
+            val deltaRx = if (rebootDetected) 0 else scrapedData.rx - previousData.lastRx
+            
+            lastDebugInfo = com.airtel.usagetracker.data.models.DebugInfo(
+                scrapedTx = scrapedData.tx,
+                scrapedRx = scrapedData.rx,
+                scrapedUptime = scrapedData.uptime,
+                previousTx = previousData.lastTx,
+                previousRx = previousData.lastRx,
+                previousUptime = previousData.lastUptime,
+                deltaTx = deltaTx,
+                deltaRx = deltaRx,
+                cumulativeBytes = updatedData.totalBytesCum,
+                rebootDetected = rebootDetected,
+                lastFetchTime = getCurrentTimestamp(),
+                lastError = null
+            )
+            
             Result.success(updatedData)
         } catch (e: Exception) {
             Log.e(TAG, "Error fetching usage", e)
+            lastDebugInfo = lastDebugInfo.copy(
+                lastError = e.message ?: "Unknown error",
+                lastFetchTime = getCurrentTimestamp()
+            )
             Result.failure(e)
         }
     }

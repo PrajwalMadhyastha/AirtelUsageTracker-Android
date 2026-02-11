@@ -25,3 +25,30 @@ data class RouterConfig(
     val password: String = "admin",
     val fupLimitGb: Int = 3333
 )
+
+data class DebugInfo(
+    val scrapedTx: Long = 0,
+    val scrapedRx: Long = 0,
+    val scrapedUptime: Long = 0,
+    val previousTx: Long = 0,
+    val previousRx: Long = 0,
+    val previousUptime: Long = 0,
+    val deltaTx: Long = 0,
+    val deltaRx: Long = 0,
+    val cumulativeBytes: Long = 0,
+    val rebootDetected: Boolean = false,
+    val lastFetchTime: String = "",
+    val lastError: String? = null
+)
+
+enum class ScrapingStatus(val message: String) {
+    IDLE("Ready to fetch"),
+    CONNECTING("Connecting to router..."),
+    LOADING_PAGE("Loading router page..."),
+    LOGGING_IN("Logging in..."),
+    NAVIGATING("Navigating to data page..."),
+    SCRAPING_DATA("Fetching usage data..."),
+    PARSING("Processing data..."),
+    SUCCESS("Data fetched successfully"),
+    ERROR("Failed to fetch data")
+}

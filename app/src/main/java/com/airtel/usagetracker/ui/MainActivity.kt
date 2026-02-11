@@ -40,6 +40,7 @@ fun DashboardScreen(viewModel: UsageViewModel) {
     val config by viewModel.routerConfig.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
     val errorMessage by viewModel.errorMessage.collectAsState()
+    val scrapingStatus by viewModel.scrapingStatus.collectAsState()
     
     Scaffold(
         topBar = {
@@ -160,6 +161,23 @@ fun DashboardScreen(viewModel: UsageViewModel) {
             
             Spacer(modifier = Modifier.height(8.dp))
             
+            // Status Message
+            if (isLoading) {
+                Text(
+                    text = scrapingStatus.message,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                    fontWeight = FontWeight.Medium
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+            }
+
+            
+            // Debug Panel
+            DebugPanel(viewModel)
+            
+            Spacer(modifier = Modifier.height(16.dp))
+            
             Text(
                 text = "Background updates every 15 minutes",
                 style = MaterialTheme.typography.bodySmall,
@@ -167,4 +185,141 @@ fun DashboardScreen(viewModel: UsageViewModel) {
             )
         }
     }
+}
+
+@Composable
+fun DebugPanel(viewModel: UsageViewModel) {
+    var expanded by remember { mutableStateOf(true) }
+    val debugInfo by viewModel.debugInfo.collectAsState()
+    
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant
+        )
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "🔍 Debug Info",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+                TextButton(onClick = { expanded = !expanded }) {
+                    Text(if (expanded) "Hide" else "Show")
+                }
+            }
+            
+            if (expanded) {
+                Spacer(modifier = Modifier.height(8.dp))
+                
+                if (debugInfo.lastFetchTime.isNotEmpty()) {
+                    DebugRow("Last Fetch", debugInfo.lastFetchTime)
+                    
+                    if (debugInfo.lastError != null) {
+                        DebugRow("❌ Error", debugInfo.lastError ?: "")
+                    } else {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = "Scraped from Router:",
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                        DebugRow("  TX (sent)", formatBytes(debugInfo.scrapedTx))
+                        DebugRow("  RX (received)", formatBytes(debugInfo.scrapedRx))
+                        DebugRow("  Uptime", formatUptime(debugInfo.scrapedUptime))
+                        
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = "Previous Values:",
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                        DebugRow("  TX", formatBytes(debugInfo.previousTx))
+                        DebugRow("  RX", formatBytes(debugInfo.previousRx))
+                        DebugRow("  Uptime", formatUptime(debugInfo.previousUptime))
+                        
+                        if (debugInfo.rebootDetected) {
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = "⚠️ REBOOT DETECTED",
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.error
+                            )
+                            DebugRow("  No data added", "(cumulative preserved)")
+                        } else {
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = "Delta (this update):",
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.Bold
+                            )
+                            DebugRow("  TX delta", formatBytes(debugInfo.deltaTx))
+                            DebugRow("  RX delta", formatBytes(debugInfo.deltaRx))
+                            DebugRow("  Total delta", formatBytes(debugInfo.deltaTx + debugInfo.deltaRx))
+                        }
+                        
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = "Cumulative Total:",
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                        DebugRow("  Bytes", debugInfo.cumulativeBytes.toString())
+                        DebugRow("  GB", String.format("%.4f GB", debugInfo.cumulativeBytes / (1024.0 * 1024.0 * 1024.0)))
+                    }
+                } else {
+                    Text(
+                        text = "No data fetched yet. Tap 'Refresh Now' to fetch.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun DebugRow(label: String, value: String) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 2.dp),
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Text(
+            text = value,
+            style = MaterialTheme.typography.bodySmall,
+            fontWeight = FontWeight.Medium,
+            color = MaterialTheme.colorScheme.onSurface
+        )
+    }
+}
+
+fun formatBytes(bytes: Long): String {
+    return when {
+        bytes >= 1024 * 1024 * 1024 -> String.format("%.2f GB", bytes / (1024.0 * 1024.0 * 1024.0))
+        bytes >= 1024 * 1024 -> String.format("%.2f MB", bytes / (1024.0 * 1024.0))
+        bytes >= 1024 -> String.format("%.2f KB", bytes / 1024.0)
+        else -> "$bytes bytes"
+    }
+}
+
+fun formatUptime(seconds: Long): String {
+    val days = seconds / 86400
+    val hours = (seconds % 86400) / 3600
+    val minutes = (seconds % 3600) / 60
+    val secs = seconds % 60
+    return "${days}d ${hours}h ${minutes}m ${secs}s"
 }

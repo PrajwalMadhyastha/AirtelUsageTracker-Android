@@ -24,6 +24,14 @@ class UsageViewModel(private val repository: UsageRepository) : ViewModel() {
     private val _errorMessage = MutableStateFlow<String?>(null)
     val errorMessage: StateFlow<String?> = _errorMessage.asStateFlow()
     
+    private val _debugInfo = MutableStateFlow(repository.getDebugInfo())
+    val debugInfo: StateFlow<com.airtel.usagetracker.data.models.DebugInfo> = _debugInfo.asStateFlow()
+
+    private val _scrapingStatus = MutableStateFlow(com.airtel.usagetracker.data.models.ScrapingStatus.IDLE)
+    val scrapingStatus: StateFlow<com.airtel.usagetracker.data.models.ScrapingStatus> = _scrapingStatus.asStateFlow()
+
+
+    
     init {
         refreshUsageData()
     }
@@ -32,16 +40,30 @@ class UsageViewModel(private val repository: UsageRepository) : ViewModel() {
         viewModelScope.launch {
             _isLoading.value = true
             _errorMessage.value = null
+            _scrapingStatus.value = com.airtel.usagetracker.data.models.ScrapingStatus.CONNECTING
+            
+            // Collect status updates from repository
+            val statusJob = launch {
+                repository.scrapingStatus.collect { status ->
+                    _scrapingStatus.value = status
+                }
+            }
             
             val result = repository.fetchAndUpdateUsage()
             
             if (result.isSuccess) {
                 _usageData.value = result.getOrNull() ?: repository.getUsageData()
+                _scrapingStatus.value = com.airtel.usagetracker.data.models.ScrapingStatus.SUCCESS
             } else {
                 _errorMessage.value = result.exceptionOrNull()?.message ?: "Unknown error"
                 _usageData.value = repository.getUsageData()
+                _scrapingStatus.value = com.airtel.usagetracker.data.models.ScrapingStatus.ERROR
             }
             
+            // Always update debug info after fetch attempt
+            _debugInfo.value = repository.getDebugInfo()
+            
+            statusJob.cancel()
             _isLoading.value = false
         }
     }
