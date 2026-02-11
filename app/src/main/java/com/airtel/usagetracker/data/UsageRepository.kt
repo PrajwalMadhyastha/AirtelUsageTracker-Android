@@ -165,7 +165,8 @@ class UsageRepository(private val context: Context) {
             routerIp = prefs.getString("router_ip", BuildConfig.DEFAULT_ROUTER_IP) ?: BuildConfig.DEFAULT_ROUTER_IP,
             username = prefs.getString("username", BuildConfig.DEFAULT_ROUTER_USERNAME) ?: BuildConfig.DEFAULT_ROUTER_USERNAME,
             password = prefs.getString("password", BuildConfig.DEFAULT_ROUTER_PASSWORD) ?: BuildConfig.DEFAULT_ROUTER_PASSWORD,
-            fupLimitGb = prefs.getInt("fup_limit_gb", 3333)
+            fupLimitGb = prefs.getInt("fup_limit_gb", 3333),
+            billingCycleStartDay = prefs.getInt("billing_cycle_day", 1)
         )
     }
     
@@ -175,7 +176,83 @@ class UsageRepository(private val context: Context) {
             putString("username", config.username)
             putString("password", config.password)
             putInt("fup_limit_gb", config.fupLimitGb)
+            putInt("billing_cycle_day", config.billingCycleStartDay)
             apply()
+        }
+    }
+
+    /**
+     * Calculates usage for the current billing cycle.
+     * Returns a Pair of (UsageData for UI display, Days remaining in cycle)
+     */
+    suspend fun getCurrentCycleUsage(): Pair<UsageData, Int> = withContext(Dispatchers.IO) {
+        val config = getRouterConfig()
+        val billingDay = config.billingCycleStartDay
+        
+        val calendar = java.util.Calendar.getInstance()
+        val today = calendar.get(java.util.Calendar.DAY_OF_MONTH)
+        
+        // Calculate start of current cycle
+        if (today < billingDay) {
+            // If today is 5th and billing is 11th, cycle started last month on 11th
+            calendar.add(java.util.Calendar.MONTH, -1)
+        }
+        calendar.set(java.util.Calendar.DAY_OF_MONTH, billingDay)
+        calendar.set(java.util.Calendar.HOUR_OF_DAY, 0)
+        calendar.set(java.util.Calendar.MINUTE, 0)
+        calendar.set(java.util.Calendar.SECOND, 0)
+        
+        val cycleStartTime = calendar.timeInMillis
+        
+        // Calculate days remaining
+        val nextCycle = java.util.Calendar.getInstance()
+        nextCycle.timeInMillis = cycleStartTime
+        nextCycle.add(java.util.Calendar.MONTH, 1)
+        val diffMillis = nextCycle.timeInMillis - System.currentTimeMillis()
+        val daysRemaining = java.util.concurrent.TimeUnit.MILLISECONDS.toDays(diffMillis).toInt().coerceAtLeast(0)
+        
+        // Get baseline (first record of this cycle)
+        val baseline = usageDao.getFirstUsageAfter(cycleStartTime)
+        val currentTotal = getUsageData()
+        
+        if (baseline != null) {
+            var cycleUsage = currentTotal.totalBytesCum - baseline.totalBytes
+            
+            // Correction: If the baseline record represents a session that started *after* the cycle began,
+            // then the usage *at* that baseline moment (i.e., px+rx) is also valid cycle usage.
+            // We subtracted it above (inside baseline.totalBytes), so we need to add it back.
+            
+            val baselineBootTime = baseline.timestamp - (baseline.uptimeSeconds * 1000)
+            if (baselineBootTime > cycleStartTime) {
+                // The router booted inside this cycle.
+                // The counters (tx+rx) at baseline are valid usage for this cycle.
+                val baselineSessionUsage = baseline.txBytes + baseline.rxBytes
+                cycleUsage += baselineSessionUsage
+                Log.d(TAG, "Baseline session started inside cycle (Boot: ${Date(baselineBootTime)}). Added back $baselineSessionUsage bytes.")
+            }
+            
+            Log.d(TAG, "Cycle usage: Total($currentTotal) - Baseline($baseline) + Correction = $cycleUsage")
+            
+            // Return modified UsageData with CYCLE total instead of lifetime total
+            val cycleData = currentTotal.copy(
+                totalBytesCum = cycleUsage.coerceAtLeast(0)
+            )
+            return@withContext Pair(cycleData, daysRemaining)
+        } else {
+            // No baseline found implies either:
+            // 1. New user (just started) -> Usage is 0 or whatever we have so far if it's after start time
+            // 2. Migration just happened -> Use legacy total if meaningful, or 0
+            
+            // If we have history but no record *after* cycle start, it means cycle just started or we haven't fetched yet
+            // However, if we are here, it means we MIGHT have just fetched data (currentTotal).
+            // If currentTotal's uptime indicates it started inside the cycle, we should use it.
+            
+            val currentBootTime = System.currentTimeMillis() - (currentTotal.lastUptime * 1000)
+            if (currentBootTime > cycleStartTime) {
+                 return@withContext Pair(currentTotal, daysRemaining)
+            }
+            
+            return@withContext Pair(currentTotal.copy(totalBytesCum = 0), daysRemaining)
         }
     }
     

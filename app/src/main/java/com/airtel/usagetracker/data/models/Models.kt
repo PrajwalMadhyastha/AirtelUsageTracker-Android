@@ -23,7 +23,8 @@ data class RouterConfig(
     val routerIp: String = "192.168.1.1",
     val username: String = "admin",
     val password: String = "admin",
-    val fupLimitGb: Int = 3333
+    val fupLimitGb: Int = 3333,
+    val billingCycleStartDay: Int = 1
 )
 
 data class DebugInfo(

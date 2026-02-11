@@ -50,6 +50,9 @@ class UsageViewModel(private val repository: UsageRepository) : ViewModel() {
     val usageHistory: StateFlow<List<com.airtel.usagetracker.data.db.UsageEntity>> = repository.getUsageHistory()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    private val _daysRemaining = MutableStateFlow(0)
+    val daysRemaining: StateFlow<Int> = _daysRemaining.asStateFlow()
+
     init {
         // Only refresh if onboarding is completed
         viewModelScope.launch {
@@ -63,6 +66,9 @@ class UsageViewModel(private val repository: UsageRepository) : ViewModel() {
     
     fun refreshUsageData() {
         viewModelScope.launch {
+            // First update the cycle usage display from local DB/Prefs
+            updateCycleDisplay()
+            
             if (!repository.isWifiConnected()) {
                 _errorMessage.value = "Not connected to WiFi"
                 _scrapingStatus.value = com.airtel.usagetracker.data.models.ScrapingStatus.ERROR
@@ -83,11 +89,11 @@ class UsageViewModel(private val repository: UsageRepository) : ViewModel() {
             val result = repository.fetchAndUpdateUsage()
             
             if (result.isSuccess) {
-                _usageData.value = result.getOrNull() ?: repository.getUsageData()
+                updateCycleDisplay() // Update again with fresh data
                 _scrapingStatus.value = com.airtel.usagetracker.data.models.ScrapingStatus.SUCCESS
             } else {
                 _errorMessage.value = result.exceptionOrNull()?.message ?: "Unknown error"
-                _usageData.value = repository.getUsageData()
+                updateCycleDisplay() // Show what we have even if fetch failed
                 _scrapingStatus.value = com.airtel.usagetracker.data.models.ScrapingStatus.ERROR
             }
             
@@ -99,9 +105,17 @@ class UsageViewModel(private val repository: UsageRepository) : ViewModel() {
         }
     }
     
+    private suspend fun updateCycleDisplay() {
+        val (cycleUsage, days) = repository.getCurrentCycleUsage()
+        _usageData.value = cycleUsage
+        _daysRemaining.value = days
+    }
+    
     fun updateRouterConfig(config: RouterConfig) {
         repository.saveRouterConfig(config)
         _routerConfig.value = config
+        // Config change (like billing day) might change displayed usage
+        viewModelScope.launch { updateCycleDisplay() }
     }
 
     fun completeOnboarding() {

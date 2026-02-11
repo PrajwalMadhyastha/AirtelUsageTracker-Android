@@ -22,6 +22,9 @@ interface UsageDao {
     @Query("SELECT * FROM usage_records WHERE timestamp BETWEEN :startTime AND :endTime ORDER BY timestamp ASC")
     suspend fun getUsageInRangeSync(startTime: Long, endTime: Long): List<UsageEntity>
 
+    @Query("SELECT * FROM usage_records WHERE timestamp >= :timestamp ORDER BY timestamp ASC LIMIT 1")
+    suspend fun getFirstUsageAfter(timestamp: Long): UsageEntity?
+
     @Query("DELETE FROM usage_records")
     suspend fun clearAll()
 }

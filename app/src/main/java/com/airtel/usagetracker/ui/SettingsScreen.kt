@@ -137,7 +137,7 @@ fun SettingsScreen(
             
             ListItem(
                 headlineContent = { Text("Credentials & IP") },
-                supportingContent = { Text("${config.username} @ ${config.routerIp}") },
+                supportingContent = { Text("${config.username} @ ${config.routerIp}\nCycle starts day ${config.billingCycleStartDay}") },
                 trailingContent = {
                     Button(onClick = { showCredentialsDialog = true }) {
                         Text("Edit")
@@ -185,6 +185,7 @@ fun CredentialsDialog(
     var username by remember { mutableStateOf(initialConfig.username) }
     var password by remember { mutableStateOf(initialConfig.password) }
     var fupLimit by remember { mutableStateOf(initialConfig.fupLimitGb.toString()) }
+    var billingDay by remember { mutableStateOf(initialConfig.billingCycleStartDay.toString()) }
     var passwordVisible by remember { mutableStateOf(false) }
     
     AlertDialog(
@@ -231,6 +232,21 @@ fun CredentialsDialog(
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     singleLine = true
                 )
+                
+                OutlinedTextField(
+                    value = billingDay,
+                    onValueChange = { 
+                        if (it.all { char -> char.isDigit() }) {
+                            val day = it.toIntOrNull()
+                            if (day == null || (day in 1..31)) {
+                                billingDay = it
+                            }
+                        }
+                    },
+                    label = { Text("Bill Cycle Day (1-31)") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    singleLine = true
+                )
             }
         },
         confirmButton = {
@@ -241,7 +257,8 @@ fun CredentialsDialog(
                             routerIp = ipAddress,
                             username = username,
                             password = password,
-                            fupLimitGb = fupLimit.toIntOrNull() ?: 3333
+                            fupLimitGb = fupLimit.toIntOrNull() ?: 3333,
+                            billingCycleStartDay = billingDay.toIntOrNull() ?: 1
                         )
                     )
                 }
