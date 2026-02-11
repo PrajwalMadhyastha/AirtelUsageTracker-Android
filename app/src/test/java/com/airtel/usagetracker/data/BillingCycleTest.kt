@@ -7,20 +7,45 @@ import java.util.Calendar
 class BillingCycleTest {
 
     @Test
-    fun testCycleStartCalculation() {
-        // Case 1: Today is 15th, Cycle starts 11th -> Start is 11th of THIS month
-        val start1 = getCycleStartDate(currentDay = 15, billingDay = 11)
-        assertEquals(0, getDaysDifference(start1, 15, 0)) // Should be same month
-
-        // Case 2: Today is 5th, Cycle starts 11th -> Start is 11th of LAST month
-        val start2 = getCycleStartDate(currentDay = 5, billingDay = 11)
-        assertEquals(-1, getDaysDifference(start2, 5, -1)) // Should be previous month
+    fun testRolloverBoundary() {
+        // Assume Billing Day is 1st of every month
+        val billingDay = 1
+        
+        // Scenario 1: Date is Jan 31st at 23:59
+        // Current month is Jan (0 in Calendar).
+        // Since 31 >= 1, we stay in Jan.
+        // Cycle start should be Jan 1st.
+        val jan31 = Calendar.getInstance()
+        jan31.set(2024, Calendar.JANUARY, 31, 23, 59)
+        val cycleStartJan = getCycleStartDate(jan31.get(Calendar.DAY_OF_MONTH), billingDay, jan31)
+        
+        assertEquals(Calendar.JANUARY, cycleStartJan.get(Calendar.MONTH))
+        assertEquals(1, cycleStartJan.get(Calendar.DAY_OF_MONTH))
+        
+        // Scenario 2: Date is Feb 1st at 00:01
+        // Current month is Feb (1 in Calendar).
+        // Since 1 >= 1, we stay in Feb.
+        // Cycle start should be Feb 1st.
+        val feb1 = Calendar.getInstance()
+        feb1.set(2024, Calendar.FEBRUARY, 1, 0, 1)
+        val cycleStartFeb = getCycleStartDate(feb1.get(Calendar.DAY_OF_MONTH), billingDay, feb1)
+        
+        assertEquals(Calendar.FEBRUARY, cycleStartFeb.get(Calendar.MONTH))
+        assertEquals(1, cycleStartFeb.get(Calendar.DAY_OF_MONTH))
+        
+        // Scenario 3: Billing Day is 15th. Date is Feb 1st.
+        // 1 < 15, so we go back one month (to Jan).
+        // Cycle start should be Jan 15th.
+        val billingDay15 = 15
+        val cycleStartFeb15 = getCycleStartDate(feb1.get(Calendar.DAY_OF_MONTH), billingDay15, feb1)
+        
+        assertEquals(Calendar.JANUARY, cycleStartFeb15.get(Calendar.MONTH))
+        assertEquals(15, cycleStartFeb15.get(Calendar.DAY_OF_MONTH))
     }
 
-    private fun getCycleStartDate(currentDay: Int, billingDay: Int): Calendar {
-        val calendar = Calendar.getInstance()
-        // Mock "today"
-        calendar.set(Calendar.DAY_OF_MONTH, currentDay)
+    private fun getCycleStartDate(currentDay: Int, billingDay: Int, refDate: Calendar? = null): Calendar {
+        val calendar = refDate?.clone() as? Calendar ?: Calendar.getInstance()
+        if (refDate == null) calendar.set(Calendar.DAY_OF_MONTH, currentDay)
         
         // Logic from Repository
         if (currentDay < billingDay) {
