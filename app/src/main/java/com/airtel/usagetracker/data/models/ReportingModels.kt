@@ -1,11 +1,11 @@
 package com.airtel.usagetracker.data.models
 
-enum class TimePeriod {
-    TODAY,
-    WEEK,
-    MONTH,
-    CYCLE,
-    ALL_TIME
+enum class TimePeriod(val label: String) {
+    TODAY("Today"),
+    WEEK("Week"),
+    MONTH("Month"),
+    CYCLE("Cycle"),
+    ALL_TIME("All Time")
 }
 
 enum class ExportFormat {
