@@ -24,6 +24,7 @@ fun TimelineTab(viewModel: ReportsViewModel) {
     val fupProjection by viewModel.fupProjection.collectAsState()
     val timelineData by viewModel.timelineData.collectAsState()
     val selectedPeriod by viewModel.selectedTimePeriod.collectAsState()
+    val selectedCycle by viewModel.selectedCycle.collectAsState()
     
     Column(
         modifier = Modifier
@@ -38,18 +39,42 @@ fun TimelineTab(viewModel: ReportsViewModel) {
         
         Spacer(modifier = Modifier.height(16.dp))
         
-        // Time Period Selector
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            TimePeriod.entries.forEach { period ->
-                FilterChip(
-                    selected = selectedPeriod == period,
-                    onClick = { viewModel.selectTimePeriod(period) },
-                    label = { Text(period.label) }
-                )
+        
+        // Time Period Selector (2 rows) - Only show if no cycle is selected globally
+        if (selectedCycle == null) {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                // First row: Today, Week, Month
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    listOf(TimePeriod.TODAY, TimePeriod.WEEK, TimePeriod.MONTH).forEach { period ->
+                        FilterChip(
+                            selected = selectedPeriod == period,
+                            onClick = { viewModel.selectTimePeriod(period) },
+                            label = { Text(period.label) }
+                        )
+                    }
+                }
+                
+                // Second row: Cycle, All Time
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    listOf(TimePeriod.CYCLE, TimePeriod.ALL_TIME).forEach { period ->
+                        FilterChip(
+                            selected = selectedPeriod == period,
+                            onClick = { viewModel.selectTimePeriod(period) },
+                            label = { Text(period.label) }
+                        )
+                    }
+                }
             }
+            Spacer(modifier = Modifier.height(16.dp))
         }
         
         Spacer(modifier = Modifier.height(16.dp))

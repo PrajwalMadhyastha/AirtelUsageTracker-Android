@@ -30,6 +30,13 @@ class ReportsViewModel(private val reportsRepository: ReportsRepository) : ViewM
     private val _selectedTimePeriod = MutableStateFlow(TimePeriod.WEEK)
     val selectedTimePeriod: StateFlow<TimePeriod> = _selectedTimePeriod.asStateFlow()
 
+    // Cycle Filter
+    private val _availableCycles = MutableStateFlow<List<CycleUsage>>(emptyList())
+    val availableCycles: StateFlow<List<CycleUsage>> = _availableCycles.asStateFlow()
+    
+    private val _selectedCycle = MutableStateFlow<CycleUsage?>(null)
+    val selectedCycle: StateFlow<CycleUsage?> = _selectedCycle.asStateFlow()
+    
     // Cycle Trends
     private val _cycleUsages = MutableStateFlow<List<CycleUsage>>(emptyList())
     val cycleUsages: StateFlow<List<CycleUsage>> = _cycleUsages.asStateFlow()
@@ -73,20 +80,26 @@ class ReportsViewModel(private val reportsRepository: ReportsRepository) : ViewM
                 // Load FUP projection
                 _fupProjection.value = reportsRepository.getFupProjection()
 
-                // Load timeline data based on selected period
-                updateTimelineData()
-
+                // Load all available cycles for filter
+                val allCycles = reportsRepository.getCycleUsages(12)
+                _availableCycles.value = allCycles
+                
                 // Load cycle trends (last 6 cycles)
                 _cycleUsages.value = reportsRepository.getCycleUsages(6)
-
-                // Load top usage days
-                _topUsageDays.value = reportsRepository.getTopUsageDays(10)
 
                 // Load monthly comparison
                 _monthlyComparison.value = reportsRepository.getMonthlyComparison()
 
-                // Load calendar data for current month
-                updateCalendarData()
+                // Determine effective cycle (preserve selection or default to first)
+                val effectiveCycle = _selectedCycle.value ?: allCycles.firstOrNull()
+                
+                // Update _selectedCycle to match effective cycle if needed
+                if (_selectedCycle.value == null) {
+                    _selectedCycle.value = effectiveCycle
+                }
+                
+                // Load data for the effective cycle
+                loadCycleData(effectiveCycle)
 
             } catch (e: Exception) {
                 _errorMessage.value = e.message ?: "Failed to load reports"
@@ -118,7 +131,7 @@ class ReportsViewModel(private val reportsRepository: ReportsRepository) : ViewM
             TimePeriod.CYCLE -> {
                 // Get current billing cycle dates from repository
                 val projection = reportsRepository.getFupProjection()
-                val cycleStart = today.minusDays(projection.daysElapsed.toLong())
+                val cycleStart = today.minusDays(projection.daysElapsed.toLong() - 1)
                 cycleStart to today
             }
             TimePeriod.ALL_TIME -> {
@@ -134,6 +147,33 @@ class ReportsViewModel(private val reportsRepository: ReportsRepository) : ViewM
         _calendarMonth.value = _calendarMonth.value.plusMonths(offset.toLong())
         viewModelScope.launch {
             updateCalendarData()
+        }
+    }
+
+
+    fun selectCycle(cycle: CycleUsage?) {
+        _selectedCycle.value = cycle
+        viewModelScope.launch {
+            loadCycleData(cycle)
+        }
+    }
+
+    private suspend fun loadCycleData(cycle: CycleUsage?) {
+        if (cycle != null) {
+            // Update timeline data to show only this cycle
+            _timelineData.value = reportsRepository.getDailyUsages(cycle.cycleStart, cycle.cycleEnd)
+            
+            // Update top usage days for this cycle
+            val cycleData = reportsRepository.getDailyUsages(cycle.cycleStart, cycle.cycleEnd)
+            _topUsageDays.value = cycleData.sortedByDescending { it.totalBytes }.take(10)
+            
+            // Update calendar to show this cycle's month
+            _calendarMonth.value = cycle.cycleStart
+            updateCalendarData()
+        } else {
+            // Show all data
+            updateTimelineData()
+            _topUsageDays.value = reportsRepository.getTopUsageDays(10)
         }
     }
 

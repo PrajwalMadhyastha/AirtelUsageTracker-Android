@@ -74,6 +74,87 @@ fun ReportsScreen(
                 }
             }
             
+            // Cycle Filter
+            val availableCycles by reportsViewModel.availableCycles.collectAsState()
+            val selectedCycle by reportsViewModel.selectedCycle.collectAsState()
+            
+            if (availableCycles.isNotEmpty()) {
+                var expanded by remember { mutableStateOf(false) }
+                
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant
+                    )
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(12.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Filter by Billing Cycle",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Text(
+                                text = selectedCycle?.let {
+                                    "${it.cycleStart.format(java.time.format.DateTimeFormatter.ofPattern("MMM dd"))} - ${it.cycleEnd.format(java.time.format.DateTimeFormatter.ofPattern("MMM dd, yyyy"))}"
+                                } ?: "All History",
+                                style = MaterialTheme.typography.bodyLarge,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+                        
+                        Box {
+                            TextButton(onClick = { expanded = true }) {
+                                Text("Change")
+                            }
+                            
+                            DropdownMenu(
+                                expanded = expanded,
+                                onDismissRequest = { expanded = false }
+                            ) {
+                                DropdownMenuItem(
+                                    text = { Text("All History") },
+                                    onClick = {
+                                        reportsViewModel.selectCycle(null)
+                                        expanded = false
+                                    }
+                                )
+                                HorizontalDivider()
+                                availableCycles.forEach { cycle ->
+                                    DropdownMenuItem(
+                                        text = {
+                                            Column {
+                                                Text(
+                                                    text = "${cycle.cycleStart.format(java.time.format.DateTimeFormatter.ofPattern("MMM dd"))} - ${cycle.cycleEnd.format(java.time.format.DateTimeFormatter.ofPattern("MMM dd, yyyy"))}",
+                                                    style = MaterialTheme.typography.bodyMedium
+                                                )
+                                                Text(
+                                                    text = "${String.format("%.1f", cycle.totalUsageGb)} GB",
+                                                    style = MaterialTheme.typography.bodySmall,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                )
+                                            }
+                                        },
+                                        onClick = {
+                                            reportsViewModel.selectCycle(cycle)
+                                            expanded = false
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            
             // Tab Content
             when (selectedTab) {
                 ReportTab.TIMELINE -> TimelineTab(reportsViewModel)
