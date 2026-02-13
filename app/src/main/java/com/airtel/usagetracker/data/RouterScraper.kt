@@ -38,12 +38,21 @@ class RouterScraper(private val context: Context) {
                 var isResumed = false
                 var loginAttempted = false
                 var loginPageCount = 0
+                var lastProcessedUrl: String? = null
                 
                 webView.webViewClient = object : WebViewClient() {
                     override fun onPageFinished(view: WebView?, url: String?) {
                         super.onPageFinished(view, url)
                         
                         Log.d(TAG, "Page loaded: $url")
+                        
+                        // Prevent duplicate processing of the same URL
+                        // onPageFinished can fire multiple times for the same page
+                        if (url == lastProcessedUrl) {
+                            Log.d(TAG, "Skipping duplicate onPageFinished for: $url")
+                            return
+                        }
+                        lastProcessedUrl = url
                         
                         when {
                             url?.contains("login", ignoreCase = true) == true || 
@@ -217,11 +226,11 @@ class RouterScraper(private val context: Context) {
                                                 var txBytes = '';
                                                 var rxBytes = '';
                                                 
-                                                // Extract uptime (format: "0: 2:24:50" or "0:2:24:50")
+                                                // Extract uptime (format: "0: 2:24:50" or "0:2:24:50" or "1:20: 5:59")
                                                 for (var j = 0; j < cellTexts.length; j++) {
                                                     var cleaned = cellTexts[j].trim();
-                                                    // Match cells that are ONLY uptime (no other text)
-                                                    if (cleaned.match(/^\d+:\s*\d+:\d+:\d+$/)) {
+                                                    // Match cells that are ONLY uptime (no other text) - allow variable spacing
+                                                    if (cleaned.match(/^\d+:\s*\d+:\s*\d+:\s*\d+$/)) {
                                                         uptime = cleaned;
                                                         break;
                                                     }
@@ -276,37 +285,48 @@ class RouterScraper(private val context: Context) {
                                             Log.d(TAG, "Scraped data: $cleanResult")
                                             
                                             // Parse JSON manually
-                                            val uptimeMatch = Regex(""""uptime":"([^"]+)"""").find(cleanResult)
+                                            val uptimeMatch = Regex(""""uptime":"([^"]*)"""").find(cleanResult)
                                             val txMatch = Regex(""""tx":"([^"]+)"""").find(cleanResult)
                                             val rxMatch = Regex(""""rx":"([^"]+)"""").find(cleanResult)
                                             
-                                            if (uptimeMatch != null && txMatch != null && rxMatch != null) {
-                                                val uptimeStr = uptimeMatch.groupValues[1]
+                                            // Only tx and rx are required; uptime is optional
+                                            if (txMatch != null && rxMatch != null) {
+                                                val uptimeStr = uptimeMatch?.groupValues?.get(1) ?: ""
                                                 val txStr = txMatch.groupValues[1]
                                                 val rxStr = rxMatch.groupValues[1]
                                                 
-                                                val uptimeSeconds = parseUptime(uptimeStr)
+                                                val uptimeSeconds = if (uptimeStr.isNotEmpty()) parseUptime(uptimeStr) else 0L
                                                 val tx = txStr.toLongOrNull() ?: 0L
                                                 val rx = rxStr.toLongOrNull() ?: 0L
                                                 
+                                                Log.d(TAG, "Parsed: tx=$tx, rx=$rx, uptime=$uptimeSeconds")
+                                                
                                                 if (!isResumed) {
                                                     isResumed = true
-                                                    webView.destroy()
+                                                    // Delay destruction slightly to ensure callback completes
+                                                    android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                                                        webView.destroy()
+                                                    }, 100)
                                                     continuation.resume(ScrapedData(tx, rx, uptimeSeconds))
                                                 }
                                             } else {
+                                                Log.e(TAG, "Failed to extract tx/rx from: $cleanResult")
                                                 if (!isResumed) {
                                                     isResumed = true
                                                     webView.destroy()
                                                     continuation.resumeWithException(
-                                                        Exception("Failed to parse scraped data")
+                                                        Exception("Failed to parse scraped data: missing tx or rx")
                                                     )
                                                 }
                                             }
                                         } else {
+                                            Log.e(TAG, "No data found in table - result was null")
                                             if (!isResumed) {
                                                 isResumed = true
-                                                webView.destroy()
+                                                // Delay destruction slightly to ensure callback completes
+                                                android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                                                    webView.destroy()
+                                                }, 100)
                                                 continuation.resumeWithException(
                                                     Exception("No data found in table")
                                                 )
@@ -316,7 +336,10 @@ class RouterScraper(private val context: Context) {
                                         Log.e(TAG, "Error parsing scraped data", e)
                                         if (!isResumed) {
                                             isResumed = true
-                                            webView.destroy()
+                                            // Delay destruction slightly to ensure callback completes
+                                            android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                                                webView.destroy()
+                                            }, 100)
                                             continuation.resumeWithException(e)
                                         }
                                     }
