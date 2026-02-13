@@ -5,6 +5,8 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -12,7 +14,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.airtel.usagetracker.data.ReportsRepository
 import com.airtel.usagetracker.data.UsageRepository
+import com.airtel.usagetracker.ui.components.FupWarningCard
+import com.airtel.usagetracker.ui.components.WeeklyDigestCard
 import com.airtel.usagetracker.ui.theme.AirtelUsageTrackerTheme
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Settings
@@ -51,7 +56,8 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun DashboardScreen(
     viewModel: UsageViewModel,
-    onNavigateToSettings: () -> Unit
+    onNavigateToSettings: () -> Unit,
+    onNavigateToReports: () -> Unit
 ) {
     val usageData by viewModel.usageData.collectAsState()
     val config by viewModel.routerConfig.collectAsState()
@@ -79,7 +85,8 @@ fun DashboardScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
-                .padding(16.dp),
+                .padding(16.dp)
+                .verticalScroll(rememberScrollState()),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Spacer(modifier = Modifier.height(24.dp))
@@ -203,6 +210,38 @@ fun DashboardScreen(
                 Spacer(modifier = Modifier.height(8.dp))
             }
 
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Reports components
+            val context = androidx.compose.ui.platform.LocalContext.current
+            val reportsViewModel: ReportsViewModel = viewModel(
+                factory = ReportsViewModelFactory(context)
+            )
+            
+            val weeklyDigest by reportsViewModel.weeklyDigest.collectAsState()
+            val fupProjection by reportsViewModel.fupProjection.collectAsState()
+
+            // FUP Warning Card (only shown if will exceed)
+            FupWarningCard(fupProjection = fupProjection)
+            
+            if (fupProjection?.willExceed == true) {
+                Spacer(modifier = Modifier.height(16.dp))
+            }
+
+            // Weekly Digest Card
+            WeeklyDigestCard(weeklyDigest = weeklyDigest)
+            
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // View Reports Button
+            OutlinedButton(
+                onClick = onNavigateToReports,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("View Detailed Reports")
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
             
             // Debug Panel
             DebugPanel(viewModel)
@@ -220,7 +259,7 @@ fun DashboardScreen(
 
 @Composable
 fun DebugPanel(viewModel: UsageViewModel) {
-    var expanded by remember { mutableStateOf(true) }
+    val expanded by viewModel.isDebugExpanded.collectAsState()
     val debugInfo by viewModel.debugInfo.collectAsState()
     
     Card(
@@ -240,7 +279,7 @@ fun DebugPanel(viewModel: UsageViewModel) {
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold
                 )
-                TextButton(onClick = { expanded = !expanded }) {
+                TextButton(onClick = { viewModel.toggleDebugExpanded() }) {
                     Text(if (expanded) "Hide" else "Show")
                 }
             }
@@ -297,7 +336,7 @@ fun DebugPanel(viewModel: UsageViewModel) {
                         
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(
-                            text = "Cumulative Total:",
+                            text = "Lifetime Total (All Time):",
                             style = MaterialTheme.typography.labelMedium,
                             fontWeight = FontWeight.Bold
                         )

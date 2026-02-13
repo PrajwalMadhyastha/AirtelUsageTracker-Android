@@ -46,12 +46,12 @@ android {
     }
     
     compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_1_8
-        targetCompatibility = JavaVersion.VERSION_1_8
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
     }
     
     kotlinOptions {
-        jvmTarget = "1.8"
+        jvmTarget = "17"
     }
     
     buildFeatures {
@@ -112,4 +112,12 @@ dependencies {
     implementation("androidx.room:room-runtime:$room_version")
     implementation("androidx.room:room-ktx:$room_version")
     ksp("androidx.room:room-compiler:$room_version")
+
+    // Vico Charts - Compose-first charting library
+    implementation("com.patrykandpatrick.vico:compose:1.15.0")
+    implementation("com.patrykandpatrick.vico:compose-m3:1.15.0")
+
+    // PDF generation for reports
+    implementation("com.itextpdf:itext7-core:7.2.5")
 }
+

@@ -27,4 +27,14 @@ interface UsageDao {
 
     @Query("DELETE FROM usage_records")
     suspend fun clearAll()
+
+    // Analytics queries for reporting
+    @Query("SELECT * FROM usage_records WHERE timestamp >= :startMillis AND timestamp <= :endMillis ORDER BY timestamp ASC")
+    suspend fun getUsageInRangeList(startMillis: Long, endMillis: Long): List<UsageEntity>
+
+    @Query("SELECT * FROM usage_records ORDER BY totalBytes DESC LIMIT :limit")
+    suspend fun getTopUsageDays(limit: Int): List<UsageEntity>
+
+    @Query("SELECT * FROM usage_records ORDER BY timestamp ASC")
+    fun getAllUsageFlow(): Flow<List<UsageEntity>>
 }

@@ -12,6 +12,7 @@ sealed class Screen(val route: String) {
     object Onboarding : Screen("onboarding")
     object Dashboard : Screen("dashboard")
     object Settings : Screen("settings")
+    object Reports : Screen("reports")
 }
 
 @Composable
@@ -41,6 +42,9 @@ fun AppNavHost(
                 viewModel = viewModel,
                 onNavigateToSettings = {
                     navController.navigate(Screen.Settings.route)
+                },
+                onNavigateToReports = {
+                    navController.navigate(Screen.Reports.route)
                 }
             )
         }
@@ -48,6 +52,14 @@ fun AppNavHost(
         composable(Screen.Settings.route) {
             SettingsScreen(
                 viewModel = viewModel,
+                onNavigateBack = {
+                    navController.popBackStack()
+                }
+            )
+        }
+        
+        composable(Screen.Reports.route) {
+            ReportsScreen(
                 onNavigateBack = {
                     navController.popBackStack()
                 }

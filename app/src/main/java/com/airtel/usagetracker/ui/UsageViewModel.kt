@@ -53,6 +53,9 @@ class UsageViewModel(private val repository: UsageRepository) : ViewModel() {
     private val _daysRemaining = MutableStateFlow(0)
     val daysRemaining: StateFlow<Int> = _daysRemaining.asStateFlow()
 
+    private val _isDebugExpanded = MutableStateFlow(false)
+    val isDebugExpanded: StateFlow<Boolean> = _isDebugExpanded.asStateFlow()
+
     init {
         // Only refresh if onboarding is completed
         viewModelScope.launch {
@@ -136,5 +139,9 @@ class UsageViewModel(private val repository: UsageRepository) : ViewModel() {
         viewModelScope.launch {
             repository.setAutoSyncEnabled(enabled)
         }
+    }
+
+    fun toggleDebugExpanded() {
+        _isDebugExpanded.value = !_isDebugExpanded.value
     }
 }
