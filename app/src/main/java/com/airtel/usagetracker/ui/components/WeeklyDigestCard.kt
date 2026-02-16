@@ -35,6 +35,12 @@ fun WeeklyDigestCard(
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onSecondaryContainer
                     )
+                    
+                    Text(
+                        text = "${digest.weekStart.format(DateTimeFormatter.ofPattern("MMM dd"))} - ${digest.weekEnd.format(DateTimeFormatter.ofPattern("MMM dd"))}",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.7f)
+                    )
 
                     Spacer(modifier = Modifier.height(12.dp))
 
