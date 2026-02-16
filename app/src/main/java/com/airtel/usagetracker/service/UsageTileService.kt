@@ -66,8 +66,8 @@ class UsageTileService : TileService() {
                 val tile = qsTile
                 if (tile != null) {
                     tile.state = Tile.STATE_ACTIVE
-                    tile.label = "Airtel Usage"
-                    tile.subtitle = "${String.format("%.1f", usageGb)} GB"
+                    tile.label = "${String.format("%.1f", usageGb)} GB"
+                    tile.subtitle = "Airtel Usage"
                     tile.updateTile()
                 }
             } catch (e: Exception) {
