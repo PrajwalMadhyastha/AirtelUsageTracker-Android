@@ -1,21 +1,27 @@
 package com.airtel.usagetracker.ui
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.airtel.usagetracker.data.models.ExportFormat
 import com.airtel.usagetracker.ui.components.FupWarningCard
 import com.airtel.usagetracker.ui.components.WeeklyDigestCard
 import com.airtel.usagetracker.ui.reports.CalendarTab
 import com.airtel.usagetracker.ui.reports.TimelineTab
 import com.airtel.usagetracker.ui.reports.TopDaysTab
 import com.airtel.usagetracker.ui.reports.TrendsTab
+import java.time.LocalDate
 
 enum class ReportTab(val title: String) {
     TIMELINE("Timeline"),
@@ -29,12 +35,59 @@ enum class ReportTab(val title: String) {
 fun ReportsScreen(
     onNavigateBack: () -> Unit
 ) {
-    val context = androidx.compose.ui.platform.LocalContext.current
+    val context = LocalContext.current
     val reportsViewModel: ReportsViewModel = viewModel(
         factory = ReportsViewModelFactory(context)
     )
     
     var selectedTab by remember { mutableStateOf(ReportTab.TIMELINE) }
+    
+    // Export functionality
+    var showExportMenu by remember { mutableStateOf(false) }
+    
+    // CSV Launcher
+    val csvLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("text/csv")
+    ) { uri ->
+        uri?.let { reportsViewModel.exportData(ExportFormat.CSV, it, context.contentResolver) }
+    }
+
+    // JSON Launcher
+    val jsonLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("application/json")
+    ) { uri ->
+        uri?.let { reportsViewModel.exportData(ExportFormat.JSON, it, context.contentResolver) }
+    }
+    
+    // PDF Launcher
+    val pdfLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("application/pdf")
+    ) { uri ->
+        uri?.let { reportsViewModel.exportData(ExportFormat.PDF, it, context.contentResolver) }
+    }
+
+    // Handle export request
+    fun launchExport(format: ExportFormat) {
+        val dateStr = LocalDate.now().toString()
+        
+        when (format) {
+            ExportFormat.CSV -> csvLauncher.launch("airtel_usage_$dateStr.csv")
+            ExportFormat.JSON -> jsonLauncher.launch("airtel_usage_$dateStr.json")
+            ExportFormat.PDF -> pdfLauncher.launch("airtel_usage_$dateStr.pdf")
+            else -> {}
+        }
+    }
+    
+    // Show toast for error/success messages
+    val errorMessage by reportsViewModel.errorMessage.collectAsState()
+    LaunchedEffect(errorMessage) {
+        errorMessage?.let {
+            if (it == "Export successful" || it.startsWith("Export failed")) {
+                android.widget.Toast.makeText(context, it, android.widget.Toast.LENGTH_LONG).show()
+                if (it == "Export successful") reportsViewModel.clearError()
+            }
+        }
+    }
     
     Scaffold(
         topBar = {
@@ -46,6 +99,43 @@ fun ReportsScreen(
                             Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = "Back"
                         )
+                    }
+                },
+                actions = {
+                    Box {
+                        IconButton(onClick = { showExportMenu = true }) {
+                            Icon(
+                                Icons.Filled.Share,
+                                contentDescription = "Export"
+                            )
+                        }
+                        
+                        DropdownMenu(
+                            expanded = showExportMenu,
+                            onDismissRequest = { showExportMenu = false }
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text("Export as CSV") },
+                                onClick = {
+                                    showExportMenu = false
+                                    launchExport(ExportFormat.CSV)
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Export as JSON") },
+                                onClick = {
+                                    showExportMenu = false
+                                    launchExport(ExportFormat.JSON)
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Export as PDF") },
+                                onClick = {
+                                    showExportMenu = false
+                                    launchExport(ExportFormat.PDF)
+                                }
+                            )
+                        }
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(

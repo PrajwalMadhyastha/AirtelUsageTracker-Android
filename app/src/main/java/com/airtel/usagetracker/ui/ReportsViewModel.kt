@@ -184,13 +184,23 @@ class ReportsViewModel(private val reportsRepository: ReportsRepository) : ViewM
         _calendarData.value = reportsRepository.getDailyUsages(startDate, endDate)
     }
 
-    fun exportData(format: ExportFormat, uri: Uri) {
+    fun exportData(format: ExportFormat, uri: Uri, contentResolver: android.content.ContentResolver) {
         viewModelScope.launch {
+            _isLoading.value = true
             try {
-                // TODO: Implement export using ContentResolver
-                _errorMessage.value = "Export functionality coming soon"
+                contentResolver.openOutputStream(uri)?.use { outputStream ->
+                    when (format) {
+                        ExportFormat.CSV -> reportsRepository.exportToCsv(outputStream)
+                        ExportFormat.JSON -> reportsRepository.exportToJson(outputStream)
+                        ExportFormat.PDF -> reportsRepository.exportToPdf(outputStream)
+                        else -> throw IllegalArgumentException("Unsupported format")
+                    }
+                }
+                _errorMessage.value = "Export successful"
             } catch (e: Exception) {
                 _errorMessage.value = "Export failed: ${e.message}"
+            } finally {
+                _isLoading.value = false
             }
         }
     }

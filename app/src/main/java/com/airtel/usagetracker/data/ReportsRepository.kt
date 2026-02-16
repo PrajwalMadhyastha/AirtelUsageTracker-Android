@@ -234,10 +234,12 @@ class ReportsRepository(private val context: Context) {
      */
     suspend fun exportToCsv(outputStream: OutputStream) = withContext(Dispatchers.IO) {
         val allDailyUsages = getTopUsageDays(365) // Get last year of data using corrected logic
+        // Sort by date ascending for export
+        val sortedUsages = allDailyUsages.sortedBy { it.date }
         
         outputStream.bufferedWriter().use { writer ->
             writer.write("Date,Total (GB),Upload (GB),Download (GB),Records\n")
-            allDailyUsages.forEach { usage ->
+            sortedUsages.forEach { usage ->
                 writer.write("${usage.date},${String.format("%.2f", usage.toGigabytes())},")
                 writer.write("${String.format("%.2f", usage.txBytes / (1024.0 * 1024.0 * 1024.0))},")
                 writer.write("${String.format("%.2f", usage.rxBytes / (1024.0 * 1024.0 * 1024.0))},")
@@ -250,27 +252,22 @@ class ReportsRepository(private val context: Context) {
      * Export data to JSON format
      */
     suspend fun exportToJson(outputStream: OutputStream) = withContext(Dispatchers.IO) {
-        val config = usageRepository.getRouterConfig()
-        val (cycleStart, cycleEnd) = getBillingCycleRange(LocalDate.now(), config.billingCycleStartDay)
-        val dailyUsages = getDailyUsages(cycleStart, cycleEnd)
+        val allDailyUsages = getTopUsageDays(365)
+        val sortedUsages = allDailyUsages.sortedBy { it.date }
         
         outputStream.bufferedWriter().use { writer ->
             writer.write("{\n")
             writer.write("  \"exportDate\": \"${LocalDate.now()}\",\n")
-            writer.write("  \"billingCycle\": {\n")
-            writer.write("    \"start\": \"$cycleStart\",\n")
-            writer.write("    \"end\": \"$cycleEnd\"\n")
-            writer.write("  },\n")
             writer.write("  \"dailyUsage\": [\n")
             
-            dailyUsages.forEachIndexed { index, usage ->
+            sortedUsages.forEachIndexed { index, usage ->
                 writer.write("    {\n")
                 writer.write("      \"date\": \"${usage.date}\",\n")
                 writer.write("      \"totalGb\": ${String.format("%.2f", usage.toGigabytes())},\n")
                 writer.write("      \"uploadGb\": ${String.format("%.2f", usage.txBytes / (1024.0 * 1024.0 * 1024.0))},\n")
                 writer.write("      \"downloadGb\": ${String.format("%.2f", usage.rxBytes / (1024.0 * 1024.0 * 1024.0))},\n")
                 writer.write("      \"records\": ${usage.recordCount}\n")
-                writer.write("    }${if (index < dailyUsages.size - 1) "," else ""}\n")
+                writer.write("    }${if (index < sortedUsages.size - 1) "," else ""}\n")
             }
             
             writer.write("  ]\n")
@@ -279,11 +276,26 @@ class ReportsRepository(private val context: Context) {
     }
 
     /**
-     * Export data to PDF format (placeholder - will implement with iText)
+     * Export data to PDF format
      */
     suspend fun exportToPdf(outputStream: OutputStream) = withContext(Dispatchers.IO) {
-        // TODO: Implement PDF generation with iText
-        Log.w(TAG, "PDF export not yet implemented")
+        val allUsages = getTopUsageDays(365)
+        
+        // Calculate summary stats for the report
+        val totalGb = allUsages.sumOf { it.toGigabytes() }
+        val days = allUsages.size
+        val avgGb = if (days > 0) totalGb / days else 0.0
+        val peak = allUsages.maxByOrNull { it.totalBytes }
+        
+        val generator = PdfGenerator(context)
+        generator.generateReport(
+            outputStream = outputStream,
+            dailyUsages = allUsages,
+            summaryTotalGb = totalGb,
+            dailyAverageGb = avgGb,
+            peakDay = peak?.date ?: LocalDate.now(),
+            peakUsageGb = peak?.toGigabytes() ?: 0.0
+        )
     }
 
     // Helper functions
