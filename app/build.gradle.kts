@@ -3,11 +3,12 @@ import java.util.Properties
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
-    id("com.google.devtools.ksp") version "1.9.0-1.0.13"
+    id("com.google.devtools.ksp") version "2.2.10-2.0.2"
+    id("org.jetbrains.kotlin.plugin.compose")
 }
 
 android {
-    namespace = "com.airtel.usagetracker"
+    namespace = "com.prajwal.utilities"
     compileSdk = 34
 
     defaultConfig {
@@ -58,11 +59,7 @@ android {
         compose = true
         buildConfig = true
     }
-    
-    composeOptions {
-        kotlinCompilerExtensionVersion = "1.5.1"
-    }
-    
+
     packaging {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
@@ -108,7 +105,7 @@ dependencies {
     debugImplementation("androidx.compose.ui:ui-test-manifest")
 
     // Room Database
-    val room_version = "2.6.1"
+    val room_version = "2.7.0-alpha11"
     implementation("androidx.room:room-runtime:$room_version")
     implementation("androidx.room:room-ktx:$room_version")
     ksp("androidx.room:room-compiler:$room_version")
