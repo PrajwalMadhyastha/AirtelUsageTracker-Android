@@ -7,7 +7,7 @@ import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.NetworkType
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
-import com.prajwal.utilities.workers.UsageWorker
+import com.prajwal.utilities.tools.wifiusage.workers.UsageWorker
 import java.util.concurrent.TimeUnit
 
 class UsageTrackerApp : Application() {

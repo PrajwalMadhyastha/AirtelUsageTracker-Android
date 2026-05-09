@@ -28,7 +28,7 @@
             </intent-filter>
         </activity>
         <service
-            android:name=".service.UsageTileService"
+            android:name=".tools.wifiusage.service.UsageTileService"
             android:exported="true"
             android:label="WiFi Usage"
             android:icon="@drawable/ic_tile_data"
