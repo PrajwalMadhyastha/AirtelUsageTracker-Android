@@ -1,4 +1,4 @@
-package com.airtel.usagetracker.data
+package com.prajwal.utilities.data
 
 import org.junit.Assert.assertEquals
 import org.junit.Test

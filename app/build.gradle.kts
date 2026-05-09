@@ -12,7 +12,7 @@ android {
     compileSdk = 34
 
     defaultConfig {
-        applicationId = "com.airtel.usagetracker"
+        applicationId = "com.prajwal.utilities"
         minSdk = 24
         targetSdk = 34
         versionCode = 1
