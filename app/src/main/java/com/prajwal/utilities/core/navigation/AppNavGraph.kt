@@ -99,7 +99,7 @@ fun AppNavHost(
             val context = LocalContext.current
             val repository = remember {
                 CricketTossRepository(
-                    com.prajwal.utilities.tools.cricketstats.data.db.CricketStatsDatabase.getDatabase(context).tossDao()
+                    com.prajwal.utilities.tools.crickettoss.data.db.CricketTossDatabase.getDatabase(context).tossDao()
                 )
             }
             val viewModel: CricketTossViewModel = viewModel(

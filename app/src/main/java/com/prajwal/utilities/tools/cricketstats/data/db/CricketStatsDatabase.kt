@@ -8,13 +8,12 @@ import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
-    entities = [MatchEntity::class, BattingInningsEntity::class, BowlingInningsEntity::class, com.prajwal.utilities.tools.crickettoss.data.db.TossEntity::class],
-    version = 2,
+    entities = [MatchEntity::class, BattingInningsEntity::class, BowlingInningsEntity::class],
+    version = 3,
     exportSchema = false
 )
 abstract class CricketStatsDatabase : RoomDatabase() {
     abstract fun cricketStatsDao(): CricketStatsDao
-    abstract fun tossDao(): com.prajwal.utilities.tools.crickettoss.data.db.TossDao
 
     companion object {
         @Volatile
@@ -26,6 +25,12 @@ abstract class CricketStatsDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("DROP TABLE IF EXISTS `toss_history`")
+            }
+        }
+
         fun getDatabase(context: Context): CricketStatsDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -33,7 +38,7 @@ abstract class CricketStatsDatabase : RoomDatabase() {
                     CricketStatsDatabase::class.java,
                     "cricket_stats_database"
                 )
-                .addMigrations(MIGRATION_1_2)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
                 .build()
                 INSTANCE = instance
                 instance
@@ -41,3 +46,4 @@ abstract class CricketStatsDatabase : RoomDatabase() {
         }
     }
 }
+
