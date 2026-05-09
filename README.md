@@ -2,7 +2,7 @@
 
 A modern, modular Android toolkit designed to simplify your daily digital life. Built with **Jetpack Compose**, this app serves as a flat-structure hub for various independent tools.
 
-## 🛠 Available Tools
+## Available Tools
 
 ### 1. WiFi Usage Tracker
 *Refactored from the original Airtel Usage Tracker.*
@@ -18,12 +18,12 @@ A modern, modular Android toolkit designed to simplify your daily digital life. 
 - **Haptic Feedback**: Physical vibration on landing for a premium feel.
 - **Lightning Fast**: Zero-lag interaction designed for immediate results.
 
-### 🚀 Coming Soon
+### Coming Soon
 - **Cricket Stats**: Track personal batting and bowling performance.
 - **Passwords**: An offline-first, secure personal vault.
 - **Workout Tracker**: Log gym sessions and exercise progress.
 
-## 🏗 Architecture & Tech Stack
+## Architecture & Tech Stack
 
 The app uses a **Modular Tool Registry** pattern, allowing for the easy addition of new utilities without bloating the core codebase.
 
@@ -33,7 +33,7 @@ The app uses a **Modular Tool Registry** pattern, allowing for the easy addition
 - **Persistence**: DataStore Preferences for settings and shared state.
 - **Background Tasks**: WorkManager for reliable periodic fetching (WiFi tool).
 
-## 📥 Setup & Installation
+## Setup & Installation
 
 ### Prerequisites
 - JDK 17+
@@ -45,5 +45,5 @@ The app uses a **Modular Tool Registry** pattern, allowing for the easy addition
 2. Open in Android Studio.
 3. Build and run on your device or emulator.
 
-## 📄 License
+## License
 MIT License. Free to use, modify, and extend!
