@@ -13,6 +13,7 @@ sealed class Screen(val route: String) {
     // Other tools (single screen each for now)
     object CricketToss : Screen("cricket_toss")
     object CricketStats : Screen("cricket_stats")
+    object CricketStatsAddMatch : Screen("cricket_stats/add")
     object PasswordManager : Screen("password_manager")
     object WorkoutTracker : Screen("workout_tracker")
 }

@@ -92,7 +92,39 @@ fun AppNavHost(
 
         // ── Cricket Stats ─────────────────────────────────────────────
         composable(Screen.CricketStats.route) {
-            CricketStatsScreen(onNavigateBack = { navController.popBackStack() })
+            val context = LocalContext.current
+            val repository = remember { 
+                com.prajwal.utilities.tools.cricketstats.data.CricketStatsRepository(
+                    com.prajwal.utilities.tools.cricketstats.data.db.CricketStatsDatabase.getDatabase(context).cricketStatsDao()
+                ) 
+            }
+            val viewModel: com.prajwal.utilities.tools.cricketstats.CricketStatsViewModel = viewModel(
+                factory = com.prajwal.utilities.tools.cricketstats.CricketStatsViewModelFactory(repository)
+            )
+            CricketStatsScreen(
+                viewModel = viewModel,
+                onNavigateBack = { navController.popBackStack() },
+                onNavigateToAddMatch = { navController.navigate(Screen.CricketStatsAddMatch.route) }
+            )
+        }
+
+        composable(Screen.CricketStatsAddMatch.route) {
+            val context = LocalContext.current
+            val repository = remember { 
+                com.prajwal.utilities.tools.cricketstats.data.CricketStatsRepository(
+                    com.prajwal.utilities.tools.cricketstats.data.db.CricketStatsDatabase.getDatabase(context).cricketStatsDao()
+                ) 
+            }
+            val viewModel: com.prajwal.utilities.tools.cricketstats.CricketStatsViewModel = viewModel(
+                factory = com.prajwal.utilities.tools.cricketstats.CricketStatsViewModelFactory(repository)
+            )
+            com.prajwal.utilities.tools.cricketstats.AddMatchScreen(
+                onNavigateBack = { navController.popBackStack() },
+                onSaveMatch = { match, batting, bowling ->
+                    viewModel.saveMatch(match, batting, bowling)
+                    navController.popBackStack()
+                }
+            )
         }
 
         // ── Password Manager ──────────────────────────────────────────
