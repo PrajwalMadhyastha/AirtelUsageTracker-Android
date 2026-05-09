@@ -1,87 +1,49 @@
-# Airtel Usage Tracker - Android App
+# Utilities App
 
-A modern, native Android application designed to track data usage from your Airtel Xstream Fiber router. Built with **Jetpack Compose** and **WorkManager**, it runs efficiently in the background to ensure you never cross your FUP limit uniquely.
+A modern, modular Android toolkit designed to simplify your daily digital life. Built with **Jetpack Compose**, this app serves as a flat-structure hub for various independent tools.
 
-## Features
+## 🛠 Available Tools
 
-- **Smart Onboarding**: specific guided wizard to help you set up router credentials and verify connectivity immediately.
-- **Real-time Dashboard**: 
-    - Visualizes usage with a clean progress bar.
-    - Displays total data consumed, remaining data, and percentage used.
-    - Shows "Last Updated" timestamp for confidence.
-- **Configurable Sync**: 
-    - Choose how often to update data (e.g., every 4, 6, or 12 hours).
-    - **Battery Efficient**: Updates only occur when connected to **WiFi** and battery is not low.
-- **Robust Background Tracking**: 
-    - Uses `WorkManager` for reliable periodic fetching.
-    - **Reboot Detection**: Smart logic detects router restarts to ensure accurate cumulative billing cycle usage.
-- **Manual Controls**: 
-    - "Refresh Now" button with intelligent network checks.
-    - Update router IP/Username/Password anytime from Settings.
-    - Toggle Auto-Sync on/off.
+### 1. WiFi Usage Tracker
+*Refactored from the original Airtel Usage Tracker.*
+- **Background Sync**: Uses `WorkManager` to track broadband data cap usage automatically.
+- **Smart Dashboard**: Displays remaining data, percentage used, and update timestamps.
+- **Onboarding Wizard**: Guided setup for router credentials and sync intervals.
+- **Battery Efficient**: Only updates when connected to WiFi and battery is healthy.
 
-## Tech Stack
+### 2. Cricket Toss
+*The perfect companion for your weekend games.*
+- **3D Animations**: A high-fidelity animated coin flip with realistic 3D perspective.
+- **Toss History**: Tracks your last 10 flips to ensure transparency and "fairness."
+- **Haptic Feedback**: Physical vibration on landing for a premium feel.
+- **Lightning Fast**: Zero-lag interaction designed for immediate results.
+
+### 🚀 Coming Soon
+- **Cricket Stats**: Track personal batting and bowling performance.
+- **Passwords**: An offline-first, secure personal vault.
+- **Workout Tracker**: Log gym sessions and exercise progress.
+
+## 🏗 Architecture & Tech Stack
+
+The app uses a **Modular Tool Registry** pattern, allowing for the easy addition of new utilities without bloating the core codebase.
 
 - **Language**: Kotlin
 - **UI Framework**: Jetpack Compose (Material 3)
-- **Navigation**: Navigation Compose
-- **Background Tasks**: WorkManager
-- **Persistence**: 
-    - `DataStore Preferences` (User Settings)
-    - `SharedPreferences` (Router Config, Legacy)
-- **Networking**: Custom HTML Scraping (Jsoup/WebView logic)
+- **Architecture**: MVVM with a centralized Tool Registry and NavGraph.
+- **Persistence**: DataStore Preferences for settings and shared state.
+- **Background Tasks**: WorkManager for reliable periodic fetching (WiFi tool).
 
-## Setup & Installation
+## 📥 Setup & Installation
 
 ### Prerequisites
 - JDK 17+
 - Android Studio Ladybug or newer
-- An Android device (Android 8.0+ recommended) connected to your Airtel Router's WiFi.
+- Android 8.0+ device
 
-### 1. Clone & Open
-1. Clone the repository or copy project files to your machine.
-2. Open **Android Studio**.
-3. Select **Open** and navigate to the project directory (`/Users/prajw/StudioProjects/AirtelUsageTracker`).
+### Build Instructions
+1. Clone the repository.
+2. Open in Android Studio.
+3. Build and run on your device or emulator.
 
-### 2. Build & Run
-1. Connect your Android device via USB or WiFi Debugging.
-2. Click the **Run** ▶️ button in Android Studio.
-3. The app will install and launch automatically.
-
-### 3. First-Time Setup (Onboarding)
-1. **Welcome Screen**: ensures you are connected to WiFi.
-2. **Router Setup**: 
-   - Default IP: `192.168.1.1`
-   - Default User/Pass: `admin` / `admin`
-   - **Test Connection**: Tap to verify credentials before proceeding.
-3. **Sync Preferences**: Select your preferred update interval (Default: 4 hours).
-
-## Architecture
-
-```mermaid
-graph TD
-    A[MainActivity] --> B{Onboarding Completed?}
-    B -- No --> C[OnboardingWizard]
-    B -- Yes --> D[DashboardScreen]
-    
-    C --> E[Save Credentials & Prefs]
-    E --> D
-    
-    D --> F[UsageViewModel]
-    D --> G[SettingsScreen]
-    
-    F --> H[UsageRepository]
-    
-    I[WorkManager] --> H
-    H --> J[RouterScraper]
-    J --> K((Airtel Router))
-```
-
-## Important Notes
-
-- **Battery Optimization**: For 24/7 background tracking on some devices (Samsung, Xiaomi, OnePlus), you may need to set the app battery usage to **"Unrestricted"** in system settings to prevent the OS from killing the background worker.
-- **Router Compatibility**: Designed for standard Airtel Xstream Fiber routers (e.g., Nokia, ZTE, Huawei) accessible via `192.168.1.1`.
-
-## License
-
-MIT License. Free to use and modify!
+## 📄 License
+MIT License. Free to use, modify, and extend!
