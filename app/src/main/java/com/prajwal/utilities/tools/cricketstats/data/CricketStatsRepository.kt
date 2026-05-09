@@ -33,6 +33,19 @@ class CricketStatsRepository(private val dao: CricketStatsDao) {
         }
     }
 
+    suspend fun updateFullMatch(
+        match: MatchEntity,
+        battingInnings: BattingInningsEntity?,
+        bowlingInnings: BowlingInningsEntity?
+    ) {
+        dao.updateMatch(match)
+        // Delete existing innings and re-insert, handles toggling on/off cleanly
+        dao.deleteBattingInningsByMatchId(match.id)
+        dao.deleteBowlingInningsByMatchId(match.id)
+        battingInnings?.let { dao.insertBattingInnings(it.copy(matchId = match.id)) }
+        bowlingInnings?.let { dao.insertBowlingInnings(it.copy(matchId = match.id)) }
+    }
+
     suspend fun deleteMatch(match: MatchEntity) {
         dao.deleteMatch(match)
     }

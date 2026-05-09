@@ -16,6 +16,7 @@ import androidx.compose.ui.unit.dp
 import com.prajwal.utilities.tools.cricketstats.data.db.BattingInningsEntity
 import com.prajwal.utilities.tools.cricketstats.data.db.BowlingInningsEntity
 import com.prajwal.utilities.tools.cricketstats.data.db.MatchEntity
+import com.prajwal.utilities.tools.cricketstats.data.db.MatchWithInnings
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -24,40 +25,87 @@ import java.util.Locale
 @Composable
 fun AddMatchScreen(
     onNavigateBack: () -> Unit,
-    onSaveMatch: (MatchEntity, BattingInningsEntity?, BowlingInningsEntity?) -> Unit
+    onSaveMatch: (MatchEntity, BattingInningsEntity?, BowlingInningsEntity?) -> Unit,
+    // Edit mode: when non-null, the form is pre-populated and onUpdateMatch is invoked on save
+    initialData: MatchWithInnings? = null,
+    onUpdateMatch: ((MatchEntity, BattingInningsEntity?, BowlingInningsEntity?) -> Unit)? = null
 ) {
-    var opponent by remember { mutableStateOf("") }
-    var matchType by remember { mutableStateOf("T20") }
-    var notes by remember { mutableStateOf("") }
+    val isEditMode = initialData != null
+    val existingMatch = initialData?.match
 
-    // Date State - default to today
-    var selectedDateMillis by remember { mutableStateOf(System.currentTimeMillis()) }
+    var opponent by remember { mutableStateOf(existingMatch?.opponent ?: "") }
+    var matchType by remember { mutableStateOf(existingMatch?.matchType ?: "T20") }
+    var notes by remember { mutableStateOf(existingMatch?.notes ?: "") }
+
+    // Date State
+    var selectedDateMillis by remember { mutableStateOf(existingMatch?.date ?: System.currentTimeMillis()) }
     var showDatePicker by remember { mutableStateOf(false) }
     val dateDisplayFormat = SimpleDateFormat("MMM dd, yyyy", Locale.getDefault())
 
     // Batting State
-    var didBat by remember { mutableStateOf(false) }
-    var runsScored by remember { mutableStateOf("") }
-    var ballsFaced by remember { mutableStateOf("") }
-    var fours by remember { mutableStateOf("") }
-    var sixes by remember { mutableStateOf("") }
-    var howOut by remember { mutableStateOf("Not out") }
-    
-    val dismissalTypes = listOf("Not out", "Bowled", "Caught", "LBW", "Run out", "Stumped")
+    val existingBatting = initialData?.battingInnings
+    var didBat by remember { mutableStateOf(existingBatting != null) }
+    var runsScored by remember { mutableStateOf(existingBatting?.runsScored?.toString() ?: "") }
+    var ballsFaced by remember { mutableStateOf(existingBatting?.ballsFaced?.toString() ?: "") }
+    var fours by remember { mutableStateOf(existingBatting?.fours?.toString() ?: "") }
+    var sixes by remember { mutableStateOf(existingBatting?.sixes?.toString() ?: "") }
+    var howOut by remember { mutableStateOf(existingBatting?.howOut ?: "Not out") }
+    var showHowOutMenu by remember { mutableStateOf(false) }
+    val dismissalTypes = listOf("Not out", "Bowled", "Caught", "LBW", "Run out", "Stumped", "Retired Hurt")
 
     // Bowling State
-    var didBowl by remember { mutableStateOf(false) }
-    var ballsBowled by remember { mutableStateOf("") }
-    var runsConceded by remember { mutableStateOf("") }
-    var wickets by remember { mutableStateOf("") }
-    var maidens by remember { mutableStateOf("") }
-    var wides by remember { mutableStateOf("") }
-    var noBalls by remember { mutableStateOf("") }
+    val existingBowling = initialData?.bowlingInnings
+    var didBowl by remember { mutableStateOf(existingBowling != null) }
+    var ballsBowled by remember { mutableStateOf(existingBowling?.ballsBowled?.toString() ?: "") }
+    var runsConceded by remember { mutableStateOf(existingBowling?.runsConceded?.toString() ?: "") }
+    var wickets by remember { mutableStateOf(existingBowling?.wickets?.toString() ?: "") }
+    var maidens by remember { mutableStateOf(existingBowling?.maidens?.toString() ?: "") }
+    var wides by remember { mutableStateOf(existingBowling?.wides?.toString() ?: "") }
+    var noBalls by remember { mutableStateOf(existingBowling?.noBalls?.toString() ?: "") }
+
+    fun buildAndSave() {
+        val match = MatchEntity(
+            id = existingMatch?.id ?: 0,
+            date = selectedDateMillis,
+            opponent = opponent.ifBlank { "Unknown" },
+            matchType = matchType,
+            notes = notes.takeIf { it.isNotBlank() }
+        )
+        val batting = if (didBat) {
+            BattingInningsEntity(
+                id = existingBatting?.id ?: 0,
+                matchId = match.id,
+                runsScored = runsScored.toIntOrNull() ?: 0,
+                ballsFaced = ballsFaced.toIntOrNull() ?: 0,
+                fours = fours.toIntOrNull() ?: 0,
+                sixes = sixes.toIntOrNull() ?: 0,
+                howOut = howOut
+            )
+        } else null
+        val bowling = if (didBowl) {
+            BowlingInningsEntity(
+                id = existingBowling?.id ?: 0,
+                matchId = match.id,
+                ballsBowled = ballsBowled.toIntOrNull() ?: 0,
+                runsConceded = runsConceded.toIntOrNull() ?: 0,
+                wickets = wickets.toIntOrNull() ?: 0,
+                maidens = maidens.toIntOrNull() ?: 0,
+                wides = wides.toIntOrNull() ?: 0,
+                noBalls = noBalls.toIntOrNull() ?: 0
+            )
+        } else null
+
+        if (isEditMode) {
+            onUpdateMatch?.invoke(match, batting, bowling)
+        } else {
+            onSaveMatch(match, batting, bowling)
+        }
+    }
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Add Match") },
+                title = { Text(if (isEditMode) "Edit Match" else "Add Match") },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
@@ -65,39 +113,9 @@ fun AddMatchScreen(
                 },
                 actions = {
                     TextButton(onClick = {
-                        val match = MatchEntity(
-                            date = selectedDateMillis,
-                            opponent = opponent.ifBlank { "Unknown" },
-                            matchType = matchType,
-                            notes = notes.takeIf { it.isNotBlank() }
-                        )
-
-                        val batting = if (didBat) {
-                            BattingInningsEntity(
-                                matchId = 0, // Assigned in repo
-                                runsScored = runsScored.toIntOrNull() ?: 0,
-                                ballsFaced = ballsFaced.toIntOrNull() ?: 0,
-                                fours = fours.toIntOrNull() ?: 0,
-                                sixes = sixes.toIntOrNull() ?: 0,
-                                howOut = howOut
-                            )
-                        } else null
-
-                        val bowling = if (didBowl) {
-                            BowlingInningsEntity(
-                                matchId = 0, // Assigned in repo
-                                ballsBowled = ballsBowled.toIntOrNull() ?: 0,
-                                runsConceded = runsConceded.toIntOrNull() ?: 0,
-                                wickets = wickets.toIntOrNull() ?: 0,
-                                maidens = maidens.toIntOrNull() ?: 0,
-                                wides = wides.toIntOrNull() ?: 0,
-                                noBalls = noBalls.toIntOrNull() ?: 0
-                            )
-                        } else null
-
-                        onSaveMatch(match, batting, bowling)
+                        buildAndSave()
                     }) {
-                        Text("Save")
+                        Text(if (isEditMode) "Update" else "Save")
                     }
                 }
             )
@@ -155,7 +173,7 @@ fun AddMatchScreen(
                     DatePicker(state = datePickerState)
                 }
             }
-            
+
             HorizontalDivider()
 
             // Batting Section
@@ -200,15 +218,35 @@ fun AddMatchScreen(
                         modifier = Modifier.weight(1f)
                     )
                 }
-                
-                // Simple dropdown alternative using buttons or a menu
-                // For simplicity, using a row of filter chips or just an OutlinedTextField
-                OutlinedTextField(
-                    value = howOut,
-                    onValueChange = { howOut = it },
-                    label = { Text("How Out") },
-                    modifier = Modifier.fillMaxWidth()
-                )
+
+                // How Out dropdown
+                ExposedDropdownMenuBox(
+                    expanded = showHowOutMenu,
+                    onExpandedChange = { showHowOutMenu = !showHowOutMenu }
+                ) {
+                    OutlinedTextField(
+                        value = howOut,
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text("How Out") },
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = showHowOutMenu) },
+                        modifier = Modifier.fillMaxWidth().menuAnchor()
+                    )
+                    ExposedDropdownMenu(
+                        expanded = showHowOutMenu,
+                        onDismissRequest = { showHowOutMenu = false }
+                    ) {
+                        dismissalTypes.forEach { type ->
+                            DropdownMenuItem(
+                                text = { Text(type) },
+                                onClick = {
+                                    howOut = type
+                                    showHowOutMenu = false
+                                }
+                            )
+                        }
+                    }
+                }
             }
 
             HorizontalDivider()
@@ -272,9 +310,9 @@ fun AddMatchScreen(
                     )
                 }
             }
-            
+
             HorizontalDivider()
-            
+
             OutlinedTextField(
                 value = notes,
                 onValueChange = { notes = it },
@@ -282,7 +320,7 @@ fun AddMatchScreen(
                 modifier = Modifier.fillMaxWidth(),
                 minLines = 3
             )
-            
+
             Spacer(modifier = Modifier.height(32.dp))
         }
     }

@@ -1,18 +1,24 @@
 package com.prajwal.utilities.core.navigation
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
 import com.prajwal.utilities.home.HomeScreen
 import com.prajwal.utilities.tools.crickettoss.CricketTossScreen
 import com.prajwal.utilities.tools.cricketstats.CricketStatsScreen
+import com.prajwal.utilities.tools.cricketstats.data.db.MatchWithInnings
 import com.prajwal.utilities.tools.passwordmanager.PasswordManagerScreen
 import com.prajwal.utilities.tools.wifiusage.OnboardingScreen
 import com.prajwal.utilities.tools.wifiusage.ReportsScreen
@@ -104,7 +110,8 @@ fun AppNavHost(
             CricketStatsScreen(
                 viewModel = viewModel,
                 onNavigateBack = { navController.popBackStack() },
-                onNavigateToAddMatch = { navController.navigate(Screen.CricketStatsAddMatch.route) }
+                onNavigateToAddMatch = { navController.navigate(Screen.CricketStatsAddMatch.route) },
+                onNavigateToEditMatch = { matchId -> navController.navigate(Screen.CricketStatsEditMatch.createRoute(matchId)) }
             )
         }
 
@@ -125,6 +132,38 @@ fun AppNavHost(
                     navController.popBackStack()
                 }
             )
+        }
+
+        // ── Edit existing Cricket Stats match ─────────────────────────
+        composable(
+            route = Screen.CricketStatsEditMatch.route,
+            arguments = listOf(navArgument("matchId") { type = NavType.IntType })
+        ) { backStackEntry ->
+            val matchId = backStackEntry.arguments?.getInt("matchId") ?: return@composable
+            val context = LocalContext.current
+            val repository = remember {
+                com.prajwal.utilities.tools.cricketstats.data.CricketStatsRepository(
+                    com.prajwal.utilities.tools.cricketstats.data.db.CricketStatsDatabase.getDatabase(context).cricketStatsDao()
+                )
+            }
+            val viewModel: com.prajwal.utilities.tools.cricketstats.CricketStatsViewModel = viewModel(
+                factory = com.prajwal.utilities.tools.cricketstats.CricketStatsViewModelFactory(repository)
+            )
+            var matchData by remember { mutableStateOf<MatchWithInnings?>(null) }
+            LaunchedEffect(matchId) {
+                matchData = viewModel.getMatchById(matchId)
+            }
+            matchData?.let { data ->
+                com.prajwal.utilities.tools.cricketstats.AddMatchScreen(
+                    onNavigateBack = { navController.popBackStack() },
+                    onSaveMatch = { _, _, _ -> }, // unused in edit mode
+                    initialData = data,
+                    onUpdateMatch = { match, batting, bowling ->
+                        viewModel.updateMatch(match, batting, bowling)
+                        navController.popBackStack()
+                    }
+                )
+            }
         }
 
         // ── Password Manager ──────────────────────────────────────────

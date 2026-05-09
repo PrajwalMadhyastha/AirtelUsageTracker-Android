@@ -33,6 +33,12 @@ interface CricketStatsDao {
     @Delete
     suspend fun deleteMatch(match: MatchEntity): Int
 
+    @Query("DELETE FROM batting_innings WHERE matchId = :matchId")
+    suspend fun deleteBattingInningsByMatchId(matchId: Int): Int
+
+    @Query("DELETE FROM bowling_innings WHERE matchId = :matchId")
+    suspend fun deleteBowlingInningsByMatchId(matchId: Int): Int
+
     @Transaction
     @Query("SELECT * FROM matches ORDER BY date DESC")
     fun getAllMatchesWithInnings(): Flow<List<MatchWithInnings>>

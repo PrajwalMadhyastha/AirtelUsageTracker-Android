@@ -14,6 +14,9 @@ sealed class Screen(val route: String) {
     object CricketToss : Screen("cricket_toss")
     object CricketStats : Screen("cricket_stats")
     object CricketStatsAddMatch : Screen("cricket_stats/add")
+    object CricketStatsEditMatch : Screen("cricket_stats/edit/{matchId}") {
+        fun createRoute(matchId: Int) = "cricket_stats/edit/$matchId"
+    }
     object PasswordManager : Screen("password_manager")
     object WorkoutTracker : Screen("workout_tracker")
 }

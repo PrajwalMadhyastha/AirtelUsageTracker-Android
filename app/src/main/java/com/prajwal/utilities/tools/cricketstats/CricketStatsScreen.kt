@@ -6,10 +6,10 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -24,9 +24,11 @@ import java.util.Locale
 fun CricketStatsScreen(
     viewModel: CricketStatsViewModel,
     onNavigateBack: () -> Unit,
-    onNavigateToAddMatch: () -> Unit
+    onNavigateToAddMatch: () -> Unit,
+    onNavigateToEditMatch: (Int) -> Unit = {}
 ) {
     val matches by viewModel.matches.collectAsState()
+    var matchToDelete by remember { mutableStateOf<MatchWithInnings?>(null) }
 
     // Calculate aggregated stats
     var totalRuns = 0
@@ -66,9 +68,29 @@ fun CricketStatsScreen(
 
     val battingAvg = if (timesOut > 0) totalRuns.toFloat() / timesOut else if (totalRuns > 0) totalRuns.toFloat() else 0f
     val strikeRate = if (totalBallsFaced > 0) (totalRuns.toFloat() / totalBallsFaced) * 100 else 0f
-    
+
     val bowlingAvg = if (totalWickets > 0) totalRunsConceded.toFloat() / totalWickets else 0f
     val economy = if (totalBallsBowled > 0) (totalRunsConceded.toFloat() / totalBallsBowled) * 6 else 0f
+
+    // Delete confirmation dialog
+    matchToDelete?.let { mwi ->
+        AlertDialog(
+            onDismissRequest = { matchToDelete = null },
+            title = { Text("Delete Match?") },
+            text = { Text("vs ${mwi.match.opponent} will be permanently removed.") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        viewModel.deleteMatch(mwi.match)
+                        matchToDelete = null
+                    }
+                ) { Text("Delete", color = MaterialTheme.colorScheme.error) }
+            },
+            dismissButton = {
+                TextButton(onClick = { matchToDelete = null }) { Text("Cancel") }
+            }
+        )
+    }
 
     Scaffold(
         topBar = {
@@ -82,13 +104,13 @@ fun CricketStatsScreen(
                     IconButton(onClick = onNavigateBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
+                },
+                actions = {
+                    IconButton(onClick = onNavigateToAddMatch) {
+                        Icon(Icons.Default.Add, contentDescription = "Add Match")
+                    }
                 }
             )
-        },
-        floatingActionButton = {
-            FloatingActionButton(onClick = onNavigateToAddMatch) {
-                Icon(Icons.Default.Add, contentDescription = "Add Match")
-            }
         }
     ) { paddingValues ->
         LazyColumn(
@@ -130,7 +152,11 @@ fun CricketStatsScreen(
             }
 
             item {
-                Text("Recent Matches", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
+                Text(
+                    "All Matches (${matches.size})",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.SemiBold
+                )
             }
 
             if (matches.isEmpty()) {
@@ -140,8 +166,12 @@ fun CricketStatsScreen(
                     }
                 }
             } else {
-                items(matches) { matchWithInnings ->
-                    MatchCard(matchWithInnings)
+                items(matches, key = { it.match.id }) { matchWithInnings ->
+                    MatchCard(
+                        matchWithInnings = matchWithInnings,
+                        onEditClick = { onNavigateToEditMatch(matchWithInnings.match.id) },
+                        onDeleteClick = { matchToDelete = matchWithInnings }
+                    )
                 }
             }
         }
@@ -171,29 +201,65 @@ fun StatCard(modifier: Modifier = Modifier, title: String, stats: List<Pair<Stri
 }
 
 @Composable
-fun MatchCard(matchWithInnings: MatchWithInnings) {
+fun MatchCard(
+    matchWithInnings: MatchWithInnings,
+    onEditClick: () -> Unit = {},
+    onDeleteClick: () -> Unit = {}
+) {
     Card(modifier = Modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.padding(16.dp)) {
+        Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
             val dateFormat = SimpleDateFormat("MMM dd, yyyy", Locale.getDefault())
             val dateStr = dateFormat.format(Date(matchWithInnings.match.date))
-            
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text("vs ${matchWithInnings.match.opponent}", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                Text(dateStr, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        "vs ${matchWithInnings.match.opponent}",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        "${matchWithInnings.match.matchType} • $dateStr",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Row {
+                    IconButton(onClick = onEditClick) {
+                        Icon(
+                            Icons.Default.Edit,
+                            contentDescription = "Edit match",
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                    IconButton(onClick = onDeleteClick) {
+                        Icon(
+                            Icons.Default.Delete,
+                            contentDescription = "Delete match",
+                            tint = MaterialTheme.colorScheme.error
+                        )
+                    }
+                }
             }
-            Text(matchWithInnings.match.matchType, style = MaterialTheme.typography.bodySmall)
-            
-            Spacer(modifier = Modifier.height(8.dp))
-            
+
+            if (matchWithInnings.battingInnings != null || matchWithInnings.bowlingInnings != null) {
+                HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+            }
+
             matchWithInnings.battingInnings?.let {
-                Text("Bat: ${it.runsScored}(${it.ballsFaced}) - ${it.howOut}", style = MaterialTheme.typography.bodyMedium)            }
+                Text("🏏 Bat: ${it.runsScored}(${it.ballsFaced}) — ${it.howOut}", style = MaterialTheme.typography.bodyMedium)
+            }
             matchWithInnings.bowlingInnings?.let {
                 val overs = it.ballsBowled / 6
                 val extraBalls = it.ballsBowled % 6
                 val oversStr = if (extraBalls > 0) "$overs.$extraBalls" else "$overs"
-                Text("Bowl: ${it.wickets}/${it.runsConceded} ($oversStr overs)", style = MaterialTheme.typography.bodyMedium)
+                Text("⚾ Bowl: ${it.wickets}/${it.runsConceded} ($oversStr overs)", style = MaterialTheme.typography.bodyMedium)
             }
-            
+
             if (matchWithInnings.battingInnings == null && matchWithInnings.bowlingInnings == null) {
                 Text("No stats recorded", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error)
             }

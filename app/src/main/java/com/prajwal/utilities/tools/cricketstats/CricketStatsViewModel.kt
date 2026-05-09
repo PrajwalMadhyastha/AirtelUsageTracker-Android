@@ -33,9 +33,24 @@ class CricketStatsViewModel(
         }
     }
 
+    fun updateMatch(
+        match: MatchEntity,
+        battingInnings: BattingInningsEntity?,
+        bowlingInnings: BowlingInningsEntity?
+    ) {
+        viewModelScope.launch {
+            repository.updateFullMatch(match, battingInnings, bowlingInnings)
+        }
+    }
+
+    suspend fun getMatchById(matchId: Int): MatchWithInnings? {
+        return repository.getMatch(matchId)
+    }
+
     fun deleteMatch(match: MatchEntity) {
         viewModelScope.launch {
             repository.deleteMatch(match)
         }
     }
 }
+
