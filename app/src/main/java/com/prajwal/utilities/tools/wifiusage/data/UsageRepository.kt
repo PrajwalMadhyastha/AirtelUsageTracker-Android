@@ -8,6 +8,7 @@ import com.prajwal.utilities.tools.wifiusage.data.models.RouterConfig
 import com.prajwal.utilities.tools.wifiusage.data.models.ScrapedData
 import com.prajwal.utilities.tools.wifiusage.data.models.ScrapingStatus
 import com.prajwal.utilities.tools.wifiusage.data.models.UsageData
+import com.prajwal.utilities.tools.wifiusage.workers.UsageWorker
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -93,7 +94,7 @@ class UsageRepository(private val context: Context) {
             .setRequiresBatteryNotLow(true)
             .build()
             
-        val workRequest = androidx.work.PeriodicWorkRequestBuilder<com.prajwal.utilities.workers.UsageWorker>(
+        val workRequest = androidx.work.PeriodicWorkRequestBuilder<UsageWorker>(
             intervalHours.toLong(), java.util.concurrent.TimeUnit.HOURS
         )
             .setConstraints(constraints)
