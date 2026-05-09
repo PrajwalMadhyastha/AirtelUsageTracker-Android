@@ -6,6 +6,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -15,6 +16,9 @@ import androidx.compose.ui.unit.dp
 import com.prajwal.utilities.tools.cricketstats.data.db.BattingInningsEntity
 import com.prajwal.utilities.tools.cricketstats.data.db.BowlingInningsEntity
 import com.prajwal.utilities.tools.cricketstats.data.db.MatchEntity
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -25,6 +29,11 @@ fun AddMatchScreen(
     var opponent by remember { mutableStateOf("") }
     var matchType by remember { mutableStateOf("T20") }
     var notes by remember { mutableStateOf("") }
+
+    // Date State - default to today
+    var selectedDateMillis by remember { mutableStateOf(System.currentTimeMillis()) }
+    var showDatePicker by remember { mutableStateOf(false) }
+    val dateDisplayFormat = SimpleDateFormat("MMM dd, yyyy", Locale.getDefault())
 
     // Batting State
     var didBat by remember { mutableStateOf(false) }
@@ -57,7 +66,7 @@ fun AddMatchScreen(
                 actions = {
                     TextButton(onClick = {
                         val match = MatchEntity(
-                            date = System.currentTimeMillis(),
+                            date = selectedDateMillis,
                             opponent = opponent.ifBlank { "Unknown" },
                             matchType = matchType,
                             notes = notes.takeIf { it.isNotBlank() }
@@ -105,6 +114,18 @@ fun AddMatchScreen(
             // Basic Info
             Text("Match Details", style = MaterialTheme.typography.titleMedium)
             OutlinedTextField(
+                value = dateDisplayFormat.format(Date(selectedDateMillis)),
+                onValueChange = {},
+                readOnly = true,
+                label = { Text("Match Date") },
+                trailingIcon = {
+                    IconButton(onClick = { showDatePicker = true }) {
+                        Icon(Icons.Default.CalendarMonth, contentDescription = "Pick date")
+                    }
+                },
+                modifier = Modifier.fillMaxWidth()
+            )
+            OutlinedTextField(
                 value = opponent,
                 onValueChange = { opponent = it },
                 label = { Text("Opponent Team") },
@@ -116,6 +137,24 @@ fun AddMatchScreen(
                 label = { Text("Match Type (e.g., T20, ODI)") },
                 modifier = Modifier.fillMaxWidth()
             )
+
+            if (showDatePicker) {
+                val datePickerState = rememberDatePickerState(initialSelectedDateMillis = selectedDateMillis)
+                DatePickerDialog(
+                    onDismissRequest = { showDatePicker = false },
+                    confirmButton = {
+                        TextButton(onClick = {
+                            datePickerState.selectedDateMillis?.let { selectedDateMillis = it }
+                            showDatePicker = false
+                        }) { Text("OK") }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { showDatePicker = false }) { Text("Cancel") }
+                    }
+                ) {
+                    DatePicker(state = datePickerState)
+                }
+            }
             
             HorizontalDivider()
 

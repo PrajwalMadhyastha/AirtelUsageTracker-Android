@@ -33,13 +33,16 @@ fun CricketStatsScreen(
     var totalBallsFaced = 0
     var timesOut = 0
     var highestScore = 0
+    var battingMatches = 0
 
     var totalWickets = 0
     var totalRunsConceded = 0
     var totalBallsBowled = 0
+    var bowlingMatches = 0
 
     matches.forEach { matchWithInnings ->
         matchWithInnings.battingInnings?.let {
+            battingMatches++
             totalRuns += it.runsScored
             totalBallsFaced += it.ballsFaced
             if (it.runsScored > highestScore) highestScore = it.runsScored
@@ -48,10 +51,17 @@ fun CricketStatsScreen(
             }
         }
         matchWithInnings.bowlingInnings?.let {
+            bowlingMatches++
             totalWickets += it.wickets
             totalRunsConceded += it.runsConceded
             totalBallsBowled += it.ballsBowled
         }
+    }
+
+    val totalOversStr = run {
+        val overs = totalBallsBowled / 6
+        val rem = totalBallsBowled % 6
+        if (rem > 0) "$overs.$rem" else "$overs"
     }
 
     val battingAvg = if (timesOut > 0) totalRuns.toFloat() / timesOut else if (totalRuns > 0) totalRuns.toFloat() else 0f
@@ -98,6 +108,7 @@ fun CricketStatsScreen(
                         modifier = Modifier.weight(1f),
                         title = "Batting",
                         stats = listOf(
+                            "Matches" to battingMatches.toString(),
                             "Runs" to totalRuns.toString(),
                             "Avg" to String.format("%.2f", battingAvg),
                             "SR" to String.format("%.2f", strikeRate),
@@ -108,7 +119,9 @@ fun CricketStatsScreen(
                         modifier = Modifier.weight(1f),
                         title = "Bowling",
                         stats = listOf(
+                            "Matches" to bowlingMatches.toString(),
                             "Wickets" to totalWickets.toString(),
+                            "Overs" to totalOversStr,
                             "Avg" to String.format("%.2f", bowlingAvg),
                             "Econ" to String.format("%.2f", economy)
                         )
@@ -173,13 +186,12 @@ fun MatchCard(matchWithInnings: MatchWithInnings) {
             Spacer(modifier = Modifier.height(8.dp))
             
             matchWithInnings.battingInnings?.let {
-                Text("🏏 Bat: ${it.runsScored}(${it.ballsFaced}) - ${it.howOut}", style = MaterialTheme.typography.bodyMedium)
-            }
+                Text("Bat: ${it.runsScored}(${it.ballsFaced}) - ${it.howOut}", style = MaterialTheme.typography.bodyMedium)            }
             matchWithInnings.bowlingInnings?.let {
                 val overs = it.ballsBowled / 6
                 val extraBalls = it.ballsBowled % 6
                 val oversStr = if (extraBalls > 0) "$overs.$extraBalls" else "$overs"
-                Text("🎾 Bowl: ${it.wickets}/${it.runsConceded} ($oversStr overs)", style = MaterialTheme.typography.bodyMedium)
+                Text("Bowl: ${it.wickets}/${it.runsConceded} ($oversStr overs)", style = MaterialTheme.typography.bodyMedium)
             }
             
             if (matchWithInnings.battingInnings == null && matchWithInnings.bowlingInnings == null) {
