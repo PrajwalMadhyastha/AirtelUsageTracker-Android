@@ -251,13 +251,13 @@ fun MatchCard(
             }
 
             matchWithInnings.battingInnings?.let {
-                Text("🏏 Bat: ${it.runsScored}(${it.ballsFaced}) — ${it.howOut}", style = MaterialTheme.typography.bodyMedium)
+                Text("Bat: ${it.runsScored}(${it.ballsFaced}) — ${it.howOut}", style = MaterialTheme.typography.bodyMedium)
             }
             matchWithInnings.bowlingInnings?.let {
                 val overs = it.ballsBowled / 6
                 val extraBalls = it.ballsBowled % 6
                 val oversStr = if (extraBalls > 0) "$overs.$extraBalls" else "$overs"
-                Text("⚾ Bowl: ${it.wickets}/${it.runsConceded} ($oversStr overs)", style = MaterialTheme.typography.bodyMedium)
+                Text("Bowl: ${it.wickets}/${it.runsConceded} ($oversStr overs)", style = MaterialTheme.typography.bodyMedium)
             }
 
             if (matchWithInnings.battingInnings == null && matchWithInnings.bowlingInnings == null) {

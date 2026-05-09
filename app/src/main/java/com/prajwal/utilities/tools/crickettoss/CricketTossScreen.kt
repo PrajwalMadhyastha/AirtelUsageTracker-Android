@@ -32,7 +32,6 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -49,17 +48,22 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
 import kotlin.random.Random
+import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.compose.runtime.collectAsState
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun CricketTossScreen(onNavigateBack: () -> Unit) {
+fun CricketTossScreen(
+    onNavigateBack: () -> Unit,
+    viewModel: CricketTossViewModel = viewModel()
+) {
     val scope = rememberCoroutineScope()
     val haptic = LocalHapticFeedback.current
     val density = LocalDensity.current.density
     
     var isFlipping by remember { mutableStateOf(false) }
     var resultText by remember { mutableStateOf<String?>(null) }
-    val history = remember { mutableStateListOf<String>() }
+    val history by viewModel.history.collectAsState()
     
     val rotation = remember { Animatable(0f) }
     val verticalOffset = remember { Animatable(0f) }
@@ -97,8 +101,7 @@ fun CricketTossScreen(onNavigateBack: () -> Unit) {
                 isFlipping = false
                 val outcome = if (isHeads) "H" else "T"
                 resultText = if (isHeads) "HEADS" else "TAILS"
-                if (history.size >= 10) history.removeLast()
-                history.add(0, outcome)
+                viewModel.saveToss(outcome)
             }
         }
     }

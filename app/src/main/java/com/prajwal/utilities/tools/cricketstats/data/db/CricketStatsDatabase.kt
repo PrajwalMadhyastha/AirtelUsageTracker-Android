@@ -6,12 +6,13 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 
 @Database(
-    entities = [MatchEntity::class, BattingInningsEntity::class, BowlingInningsEntity::class],
-    version = 1,
+    entities = [MatchEntity::class, BattingInningsEntity::class, BowlingInningsEntity::class, com.prajwal.utilities.tools.crickettoss.data.db.TossEntity::class],
+    version = 2,
     exportSchema = false
 )
 abstract class CricketStatsDatabase : RoomDatabase() {
     abstract fun cricketStatsDao(): CricketStatsDao
+    abstract fun tossDao(): com.prajwal.utilities.tools.crickettoss.data.db.TossDao
 
     companion object {
         @Volatile

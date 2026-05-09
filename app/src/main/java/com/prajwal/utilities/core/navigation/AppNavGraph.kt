@@ -17,6 +17,9 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.prajwal.utilities.home.HomeScreen
 import com.prajwal.utilities.tools.crickettoss.CricketTossScreen
+import com.prajwal.utilities.tools.crickettoss.CricketTossViewModel
+import com.prajwal.utilities.tools.crickettoss.CricketTossViewModelFactory
+import com.prajwal.utilities.tools.crickettoss.data.CricketTossRepository
 import com.prajwal.utilities.tools.cricketstats.CricketStatsScreen
 import com.prajwal.utilities.tools.cricketstats.data.db.MatchWithInnings
 import com.prajwal.utilities.tools.passwordmanager.PasswordManagerScreen
@@ -93,7 +96,19 @@ fun AppNavHost(
 
         // ── Cricket Toss ──────────────────────────────────────────────
         composable(Screen.CricketToss.route) {
-            CricketTossScreen(onNavigateBack = { navController.popBackStack() })
+            val context = LocalContext.current
+            val repository = remember {
+                CricketTossRepository(
+                    com.prajwal.utilities.tools.cricketstats.data.db.CricketStatsDatabase.getDatabase(context).tossDao()
+                )
+            }
+            val viewModel: CricketTossViewModel = viewModel(
+                factory = CricketTossViewModelFactory(repository)
+            )
+            CricketTossScreen(
+                onNavigateBack = { navController.popBackStack() },
+                viewModel = viewModel
+            )
         }
 
         // ── Cricket Stats ─────────────────────────────────────────────
