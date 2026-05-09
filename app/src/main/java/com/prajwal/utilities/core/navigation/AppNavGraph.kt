@@ -16,8 +16,8 @@ import com.prajwal.utilities.tools.cricketstats.CricketStatsScreen
 import com.prajwal.utilities.tools.passwordmanager.PasswordManagerScreen
 import com.prajwal.utilities.tools.wifiusage.OnboardingScreen
 import com.prajwal.utilities.tools.wifiusage.ReportsScreen
-import com.prajwal.utilities.tools.wifiusage.ReportsViewModelFactory
 import com.prajwal.utilities.tools.wifiusage.SettingsScreen
+import com.prajwal.utilities.tools.wifiusage.UsageViewModel
 import com.prajwal.utilities.tools.wifiusage.UsageViewModelFactory
 import com.prajwal.utilities.tools.wifiusage.WifiUsageScreen
 import com.prajwal.utilities.tools.wifiusage.data.UsageRepository
@@ -27,14 +27,6 @@ import com.prajwal.utilities.tools.workouttracker.WorkoutTrackerScreen
 fun AppNavHost(
     navController: NavHostController = rememberNavController()
 ) {
-    val context = LocalContext.current
-    val usageRepository = remember { UsageRepository(context) }
-    val wifiViewModel: com.prajwal.utilities.tools.wifiusage.UsageViewModel = viewModel(
-        factory = UsageViewModelFactory(usageRepository)
-    )
-
-    val isOnboardingCompleted by wifiViewModel.isOnboardingCompleted.collectAsState()
-
     NavHost(
         navController = navController,
         startDestination = Screen.Home.route
@@ -47,25 +39,40 @@ fun AppNavHost(
         }
 
         // ── WiFi Usage tool ───────────────────────────────────────────
+        // The ViewModel is scoped HERE, inside the WiFi composable, so it
+        // is only created when the user actually navigates to the WiFi tool.
+        // This prevents WiFi-specific state (onboarding, data refresh) from
+        // running at app startup before the home hub is shown.
         composable(Screen.WifiUsageDashboard.route) {
-            if (isOnboardingCompleted == false) {
-                OnboardingScreen(
-                    onOnboardingComplete = {
-                        wifiViewModel.completeOnboarding()
-                    },
+            val context = LocalContext.current
+            val usageRepository = remember { UsageRepository(context) }
+            val wifiViewModel: UsageViewModel = viewModel(
+                factory = UsageViewModelFactory(usageRepository)
+            )
+            val isOnboardingCompleted by wifiViewModel.isOnboardingCompleted.collectAsState()
+
+            when (isOnboardingCompleted) {
+                false -> OnboardingScreen(
+                    onOnboardingComplete = { wifiViewModel.completeOnboarding() },
                     viewModel = wifiViewModel
                 )
-            } else {
-                WifiUsageScreen(
+                true -> WifiUsageScreen(
                     viewModel = wifiViewModel,
                     onNavigateToSettings = { navController.navigate(Screen.WifiUsageSettings.route) },
                     onNavigateToReports = { navController.navigate(Screen.WifiUsageReports.route) },
                     onNavigateBack = { navController.popBackStack() }
                 )
+                // null = DataStore still loading; show nothing (brief, invisible)
+                null -> {}
             }
         }
 
         composable(Screen.WifiUsageSettings.route) {
+            val context = LocalContext.current
+            val usageRepository = remember { UsageRepository(context) }
+            val wifiViewModel: UsageViewModel = viewModel(
+                factory = UsageViewModelFactory(usageRepository)
+            )
             SettingsScreen(
                 viewModel = wifiViewModel,
                 onNavigateBack = { navController.popBackStack() }
