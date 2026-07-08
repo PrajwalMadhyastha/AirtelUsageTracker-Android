@@ -5,6 +5,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ArrowUpward
+import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.AddCircleOutline
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
@@ -32,7 +34,9 @@ fun HoldingsTab(
     isSyncing: Boolean,
     searchResults: List<AssetSearchResult>,
     sortOption: SortOption,
+    sortAscending: Boolean,
     onSortOptionChanged: (SortOption) -> Unit,
+    onSortAscendingChanged: (Boolean) -> Unit,
     onSearchQueryChanged: (String, Boolean) -> Unit,
     onAddHolding: (HoldingEntity) -> Unit,
     onUpdateHolding: (HoldingEntity) -> Unit,
@@ -109,6 +113,12 @@ fun HoldingsTab(
                 )
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     var showSortMenu by remember { mutableStateOf(false) }
+                    IconButton(onClick = { onSortAscendingChanged(!sortAscending) }) {
+                        Icon(
+                            imageVector = if (sortAscending) Icons.Default.ArrowUpward else Icons.Default.ArrowDownward,
+                            contentDescription = "Toggle Sort Direction"
+                        )
+                    }
                     Box {
                         IconButton(onClick = { showSortMenu = true }) {
                             Icon(Icons.Default.Sort, contentDescription = "Sort")
@@ -238,19 +248,22 @@ fun HoldingsTab(
                             }
                         }
                         val sortedClassHoldings = when (sortOption) {
-                            SortOption.DEFAULT -> classHoldings
-                            SortOption.ALPHABETICAL -> classHoldings.sortedBy { it.name }
-                            SortOption.DAILY_PCT -> classHoldings.sortedByDescending { h ->
-                                if (h.previousClosePrice > 0) (h.latestPrice - h.previousClosePrice) / h.previousClosePrice else 0.0
+                            SortOption.DEFAULT -> if (sortAscending) classHoldings else classHoldings.reversed()
+                            SortOption.ALPHABETICAL -> if (sortAscending) classHoldings.sortedBy { it.name } else classHoldings.sortedByDescending { it.name }
+                            SortOption.DAILY_PCT -> classHoldings.let { list ->
+                                val sel: (HoldingEntity) -> Double = { h -> if (h.previousClosePrice > 0) (h.latestPrice - h.previousClosePrice) / h.previousClosePrice else 0.0 }
+                                if (sortAscending) list.sortedBy(sel) else list.sortedByDescending(sel)
                             }
-                            SortOption.LTP -> classHoldings.sortedByDescending { it.latestPrice }
-                            SortOption.PL_ABSOLUTE -> classHoldings.sortedByDescending { h ->
-                                (h.unitsHeld * h.latestPrice) - h.investedAmount
+                            SortOption.LTP -> if (sortAscending) classHoldings.sortedBy { it.latestPrice } else classHoldings.sortedByDescending { it.latestPrice }
+                            SortOption.PL_ABSOLUTE -> classHoldings.let { list ->
+                                val sel: (HoldingEntity) -> Double = { h -> (h.unitsHeld * h.latestPrice) - h.investedAmount }
+                                if (sortAscending) list.sortedBy(sel) else list.sortedByDescending(sel)
                             }
-                            SortOption.PL_PERCENT -> classHoldings.sortedByDescending { h ->
-                                if (h.investedAmount > 0) ((h.unitsHeld * h.latestPrice) - h.investedAmount) / h.investedAmount else 0.0
+                            SortOption.PL_PERCENT -> classHoldings.let { list ->
+                                val sel: (HoldingEntity) -> Double = { h -> if (h.investedAmount > 0) ((h.unitsHeld * h.latestPrice) - h.investedAmount) / h.investedAmount else 0.0 }
+                                if (sortAscending) list.sortedBy(sel) else list.sortedByDescending(sel)
                             }
-                            SortOption.INVESTED -> classHoldings.sortedByDescending { it.investedAmount }
+                            SortOption.INVESTED -> if (sortAscending) classHoldings.sortedBy { it.investedAmount } else classHoldings.sortedByDescending { it.investedAmount }
                         }
 
                         items(sortedClassHoldings, key = { it.id }) { holding ->

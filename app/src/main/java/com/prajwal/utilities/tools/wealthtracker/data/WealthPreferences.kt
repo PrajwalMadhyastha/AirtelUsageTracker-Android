@@ -25,6 +25,7 @@ class WealthPreferences(private val context: Context) {
         val EXPECTED_RETURN_PERCENT = doublePreferencesKey("expected_return_percent")
         val IS_BIOMETRIC_ENABLED = booleanPreferencesKey("is_biometric_enabled")
         val HOLDINGS_SORT_OPTION = stringPreferencesKey("holdings_sort_option")
+        val HOLDINGS_SORT_ASCENDING = booleanPreferencesKey("holdings_sort_ascending")
 
         // Defaults
         const val DEFAULT_MONTHLY_INVESTMENT = 10000.0   // ₹10,000/month
@@ -54,6 +55,9 @@ class WealthPreferences(private val context: Context) {
             }
         }
 
+    val holdingsSortAscending: Flow<Boolean> = context.wealthDataStore.data
+        .map { it[HOLDINGS_SORT_ASCENDING] ?: true }
+
     suspend fun updateMonthlyInvestment(amount: Double) {
         context.wealthDataStore.edit { it[MONTHLY_INVESTMENT] = amount }
     }
@@ -72,5 +76,9 @@ class WealthPreferences(private val context: Context) {
 
     suspend fun updateHoldingsSortOption(option: SortOption) {
         context.wealthDataStore.edit { it[HOLDINGS_SORT_OPTION] = option.name }
+    }
+
+    suspend fun updateHoldingsSortAscending(isAscending: Boolean) {
+        context.wealthDataStore.edit { it[HOLDINGS_SORT_ASCENDING] = isAscending }
     }
 }

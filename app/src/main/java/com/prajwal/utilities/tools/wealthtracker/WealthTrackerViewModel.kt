@@ -18,6 +18,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
@@ -104,9 +105,26 @@ class WealthTrackerViewModel(
     val holdingsSortOption: StateFlow<SortOption> = prefs.holdingsSortOption
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), SortOption.DEFAULT)
 
+    val holdingsSortAscending: StateFlow<Boolean> = prefs.holdingsSortAscending
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
+
     fun updateHoldingsSortOption(option: SortOption) {
         viewModelScope.launch {
-            prefs.updateHoldingsSortOption(option)
+            val currentOption = prefs.holdingsSortOption.first()
+            if (currentOption == option) {
+                val currentAsc = prefs.holdingsSortAscending.first()
+                prefs.updateHoldingsSortAscending(!currentAsc)
+            } else {
+                prefs.updateHoldingsSortOption(option)
+                val defaultAsc = option == SortOption.ALPHABETICAL || option == SortOption.DEFAULT
+                prefs.updateHoldingsSortAscending(defaultAsc)
+            }
+        }
+    }
+
+    fun updateHoldingsSortAscending(isAscending: Boolean) {
+        viewModelScope.launch {
+            prefs.updateHoldingsSortAscending(isAscending)
         }
     }
 
