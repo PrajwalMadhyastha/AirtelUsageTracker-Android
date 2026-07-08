@@ -110,20 +110,61 @@ fun HoldingsTab(
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold
                 )
-                Button(
-                    onClick = onSyncNow,
-                    enabled = !isSyncing
-                ) {
-                    if (isSyncing) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(24.dp),
-                            color = MaterialTheme.colorScheme.onPrimary,
-                            strokeWidth = 2.dp
-                        )
-                    } else {
-                        Icon(Icons.Default.Refresh, contentDescription = "Sync Now")
-                        Spacer(Modifier.width(8.dp))
-                        Text("Sync Live")
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    var showSortMenu by remember { mutableStateOf(false) }
+                    Box {
+                        IconButton(onClick = { showSortMenu = true }) {
+                            Icon(Icons.Default.Sort, contentDescription = "Sort")
+                        }
+                        DropdownMenu(
+                            expanded = showSortMenu,
+                            onDismissRequest = { showSortMenu = false }
+                        ) {
+                            val sortOptionsList = SortOption.entries.filter { it != SortOption.DEFAULT }
+                            sortOptionsList.forEach { option ->
+                                DropdownMenuItem(
+                                    text = { 
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Text(
+                                                option.label, 
+                                                fontWeight = if (option == sortOption) FontWeight.Bold else FontWeight.Normal,
+                                                color = if (option == sortOption) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                                            )
+                                            if (option == sortOption) {
+                                                Spacer(modifier = Modifier.width(4.dp))
+                                                Icon(
+                                                    imageVector = if (sortAscending) Icons.Default.ArrowUpward else Icons.Default.ArrowDownward,
+                                                    contentDescription = "Sort Direction",
+                                                    modifier = Modifier.size(16.dp),
+                                                    tint = MaterialTheme.colorScheme.primary
+                                                )
+                                            }
+                                        }
+                                    },
+                                    onClick = {
+                                        onSortOptionChanged(option)
+                                        showSortMenu = false
+                                    }
+                                )
+                            }
+                        }
+                    }
+                    Spacer(Modifier.width(8.dp))
+                    Button(
+                        onClick = onSyncNow,
+                        enabled = !isSyncing
+                    ) {
+                        if (isSyncing) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(24.dp),
+                                color = MaterialTheme.colorScheme.onPrimary,
+                                strokeWidth = 2.dp
+                            )
+                        } else {
+                            Icon(Icons.Default.Refresh, contentDescription = "Sync Now")
+                            Spacer(Modifier.width(8.dp))
+                            Text("Sync Live")
+                        }
                     }
                 }
             }
@@ -143,34 +184,6 @@ fun HoldingsTab(
                         selected = selectedFilter == filter,
                         onClick = { selectedFilter = filter },
                         label = { Text(filter) }
-                    )
-                }
-            }
-
-            // Sort Options Row
-            val sortOptionsList = SortOption.entries.filter { it != SortOption.DEFAULT }
-            LazyRow(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp)
-                    .padding(bottom = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                items(sortOptionsList) { option ->
-                    val isSelected = sortOption == option
-                    FilterChip(
-                        selected = isSelected,
-                        onClick = { onSortOptionChanged(option) },
-                        label = { Text(option.label) },
-                        trailingIcon = {
-                            if (isSelected) {
-                                Icon(
-                                    imageVector = if (sortAscending) Icons.Default.ArrowUpward else Icons.Default.ArrowDownward,
-                                    contentDescription = "Sort Direction",
-                                    modifier = Modifier.size(16.dp)
-                                )
-                            }
-                        }
                     )
                 }
             }
@@ -239,8 +252,8 @@ fun HoldingsTab(
                             }
                         }
                         val sortedClassHoldings = when (sortOption) {
-                            SortOption.DEFAULT -> if (sortAscending) classHoldings else classHoldings.reversed()
-                            SortOption.ALPHABETICAL -> if (sortAscending) classHoldings.sortedBy { it.name } else classHoldings.sortedByDescending { it.name }
+                            SortOption.DEFAULT -> classHoldings
+                            SortOption.ALPHABETICAL -> if (sortAscending) classHoldings.sortedBy { it.name.lowercase() } else classHoldings.sortedByDescending { it.name.lowercase() }
                             SortOption.DAILY_PCT -> classHoldings.let { list ->
                                 val sel: (HoldingEntity) -> Double = { h -> if (h.previousClosePrice > 0) (h.latestPrice - h.previousClosePrice) / h.previousClosePrice else 0.0 }
                                 if (sortAscending) list.sortedBy(sel) else list.sortedByDescending(sel)
