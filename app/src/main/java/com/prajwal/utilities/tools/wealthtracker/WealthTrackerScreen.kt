@@ -271,14 +271,22 @@ fun WealthTrackerScreen(
                     onAddHolding = viewModel::addHolding,
                     onUpdateHolding = viewModel::updateHolding,
                     onDeleteHolding = viewModel::deleteHolding,
-                    onSyncNow = viewModel::syncPricesNow
+                    onSyncNow = {
+                        viewModel.syncPricesNow { msg ->
+                            Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+                        }
+                    }
                 )
 
                 WealthTab.PORTFOLIO -> PortfolioTab(
                     snapshots = snapshots,
                     holdings = holdings,
                     isSyncing = isSyncing,
-                    onSyncNow = viewModel::syncPricesNow,
+                    onSyncNow = {
+                        viewModel.syncPricesNow { msg ->
+                            Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+                        }
+                    },
                     onSave = { snapshot ->
                         viewModel.saveSnapshot(snapshot)
                     },

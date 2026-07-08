@@ -23,6 +23,10 @@ class PortfolioSyncWorker(
             val holdings = holdingsDao.getAllHoldings().first()
 
             for (holding in holdings) {
+                if (MarketDataRepository.shouldSkipSync(holding.lastUpdatedAt)) {
+                    continue
+                }
+
                 val prices = if (holding.instrumentType == "MF") {
                     marketDataRepo.fetchMfNav(holding.identifier)
                 } else {

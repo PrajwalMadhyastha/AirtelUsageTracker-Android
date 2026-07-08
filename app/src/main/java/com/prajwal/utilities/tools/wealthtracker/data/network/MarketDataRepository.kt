@@ -39,6 +39,30 @@ class MarketDataRepository private constructor() {
             .readTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
             .writeTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
             .build()
+            
+        fun shouldSkipSync(lastUpdatedAt: Long): Boolean {
+            val currentTime = System.currentTimeMillis()
+            val oneHourMillis = 60 * 60 * 1000L
+            val timeSinceLastSync = currentTime - lastUpdatedAt
+
+            if (timeSinceLastSync < oneHourMillis) {
+                val zoneId = java.time.ZoneId.of("Asia/Kolkata")
+                val now = java.time.ZonedDateTime.now(zoneId)
+                val dayOfWeek = now.dayOfWeek
+                val isWeekend = dayOfWeek == java.time.DayOfWeek.SATURDAY || dayOfWeek == java.time.DayOfWeek.SUNDAY
+
+                val timeInMinutes = now.hour * 60 + now.minute
+                val marketOpenMinutes = 9 * 60 + 15
+                val marketCloseMinutes = 15 * 60 + 30
+
+                val isMarketClosed = isWeekend || timeInMinutes < marketOpenMinutes || timeInMinutes >= marketCloseMinutes
+
+                if (isMarketClosed) {
+                    return true
+                }
+            }
+            return false
+        }
     }
 
     private val moshi = Moshi.Builder()

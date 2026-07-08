@@ -145,7 +145,7 @@ class WealthTrackerViewModel(
         }
     }
 
-    fun syncPricesNow() {
+    fun syncPricesNow(onMessage: ((String) -> Unit)? = null) {
         if (_isSyncing.value) return
         viewModelScope.launch {
             _isSyncing.value = true
@@ -154,7 +154,13 @@ class WealthTrackerViewModel(
                 // The previous code called .stateIn(viewModelScope).value on a cold Flow,
                 // which always returned an empty list before the first DB emission arrived.
                 val currentHoldings = holdings.value
+                var skippedCount = 0
                 for (holding in currentHoldings) {
+                    if (MarketDataRepository.shouldSkipSync(holding.lastUpdatedAt)) {
+                        skippedCount++
+                        continue
+                    }
+
                     val prices = if (holding.instrumentType == "MF") {
                         marketDataRepository.fetchMfNav(holding.identifier)
                     } else {
@@ -167,6 +173,12 @@ class WealthTrackerViewModel(
                             price = prices.latestPrice,
                             previousClosePrice = prices.previousClosePrice
                         )
+                    }
+                }
+                
+                if (currentHoldings.isNotEmpty() && skippedCount == currentHoldings.size) {
+                    withContext(Dispatchers.Main) {
+                        onMessage?.invoke("Market is closed. Prices are up to date.")
                     }
                 }
             } finally {
