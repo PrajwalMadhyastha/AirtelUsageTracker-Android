@@ -58,7 +58,8 @@ fun MilestonesTab(
             currentPortfolioValue = currentPortfolioValue,
             monthlySip = settings.monthlyInvestment,
             annualStepupPct = settings.annualStepupPercent,
-            annualReturnPct = settings.expectedReturnPercent
+            annualReturnPct = settings.expectedReturnPercent,
+            targets = milestoneTargets.map { it.second }
         )
     }
 
@@ -319,7 +320,7 @@ private fun MilestoneCard(
                     color = Color(0xFF10B981),
                     fontWeight = FontWeight.Bold
                 )
-            } else if (result != null && result.monthsToReach > 0) {
+            } else if (result != null && result.monthsToReach > 0 && result.monthsToReach <= 360) {
                 val years = result.monthsToReach / 12
                 val months = result.monthsToReach % 12
                 

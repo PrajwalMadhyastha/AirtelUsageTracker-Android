@@ -1,7 +1,5 @@
 package com.prajwal.utilities.tools.wealthtracker.data
 
-import kotlin.math.pow
-
 /**
  * Pure Kotlin milestone calculator.
  * No Android dependencies — fully unit-testable.
@@ -45,7 +43,7 @@ object MilestoneCalculator {
         targets: List<Double> = listOf(1_00_00_000.0, 5_00_00_000.0, 10_00_00_000.0),
         projectionYears: Int = 30
     ): List<MilestoneResult> {
-        val monthlyRate = (1 + annualReturnPct / 100).pow(1.0 / 12) - 1
+        val monthlyRate = (annualReturnPct / 100) / 12
         val stepupMultiplier = 1 + annualStepupPct / 100
 
         // Build month-by-month projection
@@ -98,10 +96,13 @@ object MilestoneCalculator {
 
     /** Format a large number into Indian currency notation (e.g. ₹1.5 Cr, ₹45 L) */
     fun formatInr(amount: Double): String {
-        return when {
-            amount >= 1_00_00_000 -> "₹%.2f Cr".format(amount / 1_00_00_000)
-            amount >= 1_00_000 -> "₹%.1f L".format(amount / 1_00_000)
-            else -> "₹%.0f".format(amount)
+        val isNegative = amount < 0
+        val absAmount = kotlin.math.abs(amount)
+        val formatted = when {
+            absAmount >= 1_00_00_000 -> "₹%.2f Cr".format(absAmount / 1_00_00_000)
+            absAmount >= 1_00_000 -> "₹%.1f L".format(absAmount / 1_00_000)
+            else -> "₹%.0f".format(absAmount)
         }
+        return if (isNegative) "-$formatted" else formatted
     }
 }
