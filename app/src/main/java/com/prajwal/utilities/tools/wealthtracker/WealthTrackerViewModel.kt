@@ -108,25 +108,27 @@ class WealthTrackerViewModel(
     val holdingsSortAscending: StateFlow<Boolean> = prefs.holdingsSortAscending
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
 
-    fun updateHoldingsSortOption(option: SortOption) {
+    fun onSortChipClicked(option: SortOption) {
         viewModelScope.launch {
             val currentOption = prefs.holdingsSortOption.first()
+            val defaultAsc = option == SortOption.ALPHABETICAL || option == SortOption.DEFAULT
+            
             if (currentOption == option) {
                 val currentAsc = prefs.holdingsSortAscending.first()
-                prefs.updateHoldingsSortAscending(!currentAsc)
+                if (currentAsc == defaultAsc) {
+                    prefs.updateHoldingsSortAscending(!defaultAsc)
+                } else {
+                    prefs.updateHoldingsSortOption(SortOption.DEFAULT)
+                    prefs.updateHoldingsSortAscending(true)
+                }
             } else {
                 prefs.updateHoldingsSortOption(option)
-                val defaultAsc = option == SortOption.ALPHABETICAL || option == SortOption.DEFAULT
                 prefs.updateHoldingsSortAscending(defaultAsc)
             }
         }
     }
 
-    fun updateHoldingsSortAscending(isAscending: Boolean) {
-        viewModelScope.launch {
-            prefs.updateHoldingsSortAscending(isAscending)
-        }
-    }
+
 
     fun toggleBiometric() {
         viewModelScope.launch {

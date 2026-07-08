@@ -36,7 +36,6 @@ fun HoldingsTab(
     sortOption: SortOption,
     sortAscending: Boolean,
     onSortOptionChanged: (SortOption) -> Unit,
-    onSortAscendingChanged: (Boolean) -> Unit,
     onSearchQueryChanged: (String, Boolean) -> Unit,
     onAddHolding: (HoldingEntity) -> Unit,
     onUpdateHolding: (HoldingEntity) -> Unit,
@@ -111,68 +110,32 @@ fun HoldingsTab(
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold
                 )
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    var showSortMenu by remember { mutableStateOf(false) }
-                    IconButton(onClick = { onSortAscendingChanged(!sortAscending) }) {
-                        Icon(
-                            imageVector = if (sortAscending) Icons.Default.ArrowUpward else Icons.Default.ArrowDownward,
-                            contentDescription = "Toggle Sort Direction"
+                Button(
+                    onClick = onSyncNow,
+                    enabled = !isSyncing
+                ) {
+                    if (isSyncing) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(24.dp),
+                            color = MaterialTheme.colorScheme.onPrimary,
+                            strokeWidth = 2.dp
                         )
-                    }
-                    Box {
-                        IconButton(onClick = { showSortMenu = true }) {
-                            Icon(Icons.Default.Sort, contentDescription = "Sort")
-                        }
-                        DropdownMenu(
-                            expanded = showSortMenu,
-                            onDismissRequest = { showSortMenu = false }
-                        ) {
-                            SortOption.entries.forEach { option ->
-                                DropdownMenuItem(
-                                    text = { 
-                                        Text(
-                                            option.label, 
-                                            fontWeight = if (option == sortOption) FontWeight.Bold else FontWeight.Normal,
-                                            color = if (option == sortOption) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
-                                        ) 
-                                    },
-                                    onClick = {
-                                        onSortOptionChanged(option)
-                                        showSortMenu = false
-                                    }
-                                )
-                            }
-                        }
-                    }
-                    Spacer(Modifier.width(8.dp))
-                    Button(
-                        onClick = onSyncNow,
-                        enabled = !isSyncing
-                    ) {
-                        if (isSyncing) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(24.dp),
-                                color = MaterialTheme.colorScheme.onPrimary,
-                                strokeWidth = 2.dp
-                            )
-                        } else {
-                            Icon(Icons.Default.Refresh, contentDescription = "Sync Now")
-                            Spacer(Modifier.width(8.dp))
-                            Text("Sync Live")
-                        }
+                    } else {
+                        Icon(Icons.Default.Refresh, contentDescription = "Sync Now")
+                        Spacer(Modifier.width(8.dp))
+                        Text("Sync Live")
                     }
                 }
             }
 
-            // Filter Row
+            // Category Filter Row
             val filters = listOf("All", "Stocks", "Mutual Funds", "Gold", "Debt", "Silver", "REITs")
             var selectedFilter by remember { mutableStateOf("All") }
             
             LazyRow(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 0.dp)
-                    .padding(bottom = 8.dp),
+                    .padding(horizontal = 16.dp, vertical = 0.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 items(filters) { filter ->
@@ -180,6 +143,34 @@ fun HoldingsTab(
                         selected = selectedFilter == filter,
                         onClick = { selectedFilter = filter },
                         label = { Text(filter) }
+                    )
+                }
+            }
+
+            // Sort Options Row
+            val sortOptionsList = SortOption.entries.filter { it != SortOption.DEFAULT }
+            LazyRow(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp)
+                    .padding(bottom = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                items(sortOptionsList) { option ->
+                    val isSelected = sortOption == option
+                    FilterChip(
+                        selected = isSelected,
+                        onClick = { onSortOptionChanged(option) },
+                        label = { Text(option.label) },
+                        trailingIcon = {
+                            if (isSelected) {
+                                Icon(
+                                    imageVector = if (sortAscending) Icons.Default.ArrowUpward else Icons.Default.ArrowDownward,
+                                    contentDescription = "Sort Direction",
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
+                        }
                     )
                 }
             }
