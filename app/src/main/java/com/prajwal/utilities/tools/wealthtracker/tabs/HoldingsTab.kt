@@ -261,7 +261,6 @@ fun HoldingCard(holding: HoldingEntity, onTopUp: () -> Unit, onEdit: () -> Unit,
                 }
             }
         }
-        }
     }
 }
 
