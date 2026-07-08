@@ -110,15 +110,19 @@ class MarketDataRepository {
                 
                 val detailBody = detailResponse.body()?.string() ?: ""
                 
-                // Parse nsespotval or bsespotval
                 val nseMatch = Regex("""id="nsespotval"[^>]*value="([0-9,.]+)"""").find(detailBody)
                 val bseMatch = Regex("""id="bsespotval"[^>]*value="([0-9,.]+)"""").find(detailBody)
                 
                 val priceStr = nseMatch?.groupValues?.get(1) ?: bseMatch?.groupValues?.get(1)
-                
                 val price = priceStr?.replace(",", "")?.toDoubleOrNull()
+                
+                // Parse previous close
+                val prevCloseMatch = Regex("""class="nseprvclose[^>]*>\s*([0-9,.]+)""").find(detailBody)
+                val prevCloseStr = prevCloseMatch?.groupValues?.get(1)
+                val prevClosePrice = prevCloseStr?.replace(",", "")?.toDoubleOrNull()
+                
                 if (price != null) {
-                    return@withContext AssetPrices(price, price) // Mock previous close as current
+                    return@withContext AssetPrices(price, prevClosePrice ?: price) // Use parsed prevClose or default to price
                 } else {
                     Log.e("MarketDataRepo", "Price not found in HTML. detailUrl: $detailUrlStr")
                 }
