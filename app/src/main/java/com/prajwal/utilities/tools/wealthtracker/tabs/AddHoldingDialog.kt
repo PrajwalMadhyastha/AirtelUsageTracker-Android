@@ -141,9 +141,11 @@ fun AddHoldingDialog(
                         singleLine = true
                     )
                     if (searchResults.isNotEmpty()) {
-                        ExposedDropdownMenu(
+                        DropdownMenu(
                             expanded = searchExpanded,
-                            onDismissRequest = { searchExpanded = false }
+                            onDismissRequest = { searchExpanded = false },
+                            modifier = Modifier.exposedDropdownSize(),
+                            properties = androidx.compose.ui.window.PopupProperties(focusable = false)
                         ) {
                             searchResults.forEach { result ->
                                 DropdownMenuItem(
