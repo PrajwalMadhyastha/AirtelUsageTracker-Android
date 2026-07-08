@@ -16,6 +16,7 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -321,6 +322,12 @@ private fun MilestoneCard(
             } else if (result != null && result.monthsToReach > 0) {
                 val years = result.monthsToReach / 12
                 val months = result.monthsToReach % 12
+                
+                val calendar = java.util.Calendar.getInstance()
+                calendar.add(java.util.Calendar.MONTH, result.monthsToReach)
+                val dateFmt = java.text.SimpleDateFormat("MMM yyyy", java.util.Locale.getDefault())
+                val targetDateStr = dateFmt.format(calendar.time)
+
                 Text(
                     buildString {
                         if (years > 0) append("${years}y ")
@@ -330,7 +337,7 @@ private fun MilestoneCard(
                     fontWeight = FontWeight.Bold
                 )
                 Text(
-                    "to reach",
+                    "by $targetDateStr",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -359,29 +366,25 @@ private fun ProjectionChart(
     val axisStyle = MaterialTheme.typography.labelSmall
     val onSurfaceVariant = MaterialTheme.colorScheme.onSurfaceVariant
 
-    Canvas(modifier = modifier) {
+    val density = androidx.compose.ui.platform.LocalDensity.current
+    val paddingTop = with(density) { 16.dp.toPx() }
+    val paddingBottom = with(density) { 16.dp.toPx() }
+    val paddingLeft = with(density) { 4.dp.toPx() }
+    val paddingRight = with(density) { 40.dp.toPx() }
+
+    Canvas(modifier = modifier.clipToBounds()) {
         if (points.size < 2) return@Canvas
-
-        // Measure a reference label to determine axis padding
-        val refLayout = textMeasurer.measure("30y", style = axisStyle)
-        val textH = refLayout.size.height.toFloat()
-        val textW = refLayout.size.width.toFloat()
-
-        val paddingTop = textH * 1.6f      // space for "Yr N" callout labels above dots
-        val paddingBottom = textH * 1.6f   // space for X-axis year labels
-        val paddingLeft = 8f
-        val paddingRight = textW * 2.8f    // space for milestone labels on the right
 
         val chartWidth = size.width - paddingLeft - paddingRight
         val chartHeight = size.height - paddingTop - paddingBottom
         val n = points.size
 
         val maxProjection = points.maxOrNull() ?: 1f
+        val highestMilestone = milestones.maxOfOrNull { it.second } ?: 1f
         val visibleMilestones = milestones.filter { it.second <= maxProjection * 1.5f }
-        val maxVal = maxOf(
-            maxProjection,
-            visibleMilestones.maxOfOrNull { it.second } ?: maxProjection
-        ) * 1.08f
+        
+        // Cap the Y-axis to 1.2x the highest milestone to prevent a giant empty space at the top
+        val maxVal = minOf(maxProjection, highestMilestone * 1.2f).coerceAtLeast(1f)
 
         fun xOf(i: Int) = paddingLeft + i.toFloat() / (n - 1).coerceAtLeast(1) * chartWidth
         fun yOf(v: Float): Float {
