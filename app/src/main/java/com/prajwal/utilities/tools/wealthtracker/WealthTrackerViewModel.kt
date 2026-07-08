@@ -22,6 +22,14 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import android.content.ContentResolver
+import android.net.Uri
+import android.util.Log
+import com.prajwal.utilities.tools.wealthtracker.data.WealthBackup
+import com.squareup.moshi.Moshi
+import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 class WealthTrackerViewModel(
     private val repository: WealthRepository,
@@ -183,5 +191,50 @@ class WealthTrackerViewModel(
     /** Update expected annual return % setting. */
     fun updateExpectedReturn(percent: Double) {
         viewModelScope.launch { prefs.updateExpectedReturn(percent) }
+    }
+
+    fun exportData(uri: Uri, contentResolver: ContentResolver, onComplete: (Boolean) -> Unit) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val currentHoldings = holdings.value
+                val currentSnapshots = snapshots.value
+                val backup = WealthBackup(currentHoldings, currentSnapshots)
+                val moshi = Moshi.Builder().add(KotlinJsonAdapterFactory()).build()
+                val json = moshi.adapter(WealthBackup::class.java).toJson(backup)
+                
+                contentResolver.openOutputStream(uri)?.use { outputStream ->
+                    outputStream.write(json.toByteArray())
+                }
+                withContext(Dispatchers.Main) { onComplete(true) }
+            } catch (e: Exception) {
+                Log.e("WealthTracker", "Error exporting data", e)
+                withContext(Dispatchers.Main) { onComplete(false) }
+            }
+        }
+    }
+
+    fun importData(uri: Uri, contentResolver: ContentResolver, onComplete: (Boolean) -> Unit) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val json = contentResolver.openInputStream(uri)?.use { inputStream ->
+                    inputStream.bufferedReader().use { it.readText() }
+                }
+                if (json != null) {
+                    val moshi = Moshi.Builder().add(KotlinJsonAdapterFactory()).build()
+                    val backup = moshi.adapter(WealthBackup::class.java).fromJson(json)
+                    if (backup != null) {
+                        backup.holdings.forEach { repository.insertHolding(it.copy(id = 0)) }
+                        backup.snapshots.forEach { repository.insertSnapshot(it.copy(id = 0)) }
+                        syncPricesNow()
+                        withContext(Dispatchers.Main) { onComplete(true) }
+                        return@launch
+                    }
+                }
+                withContext(Dispatchers.Main) { onComplete(false) }
+            } catch (e: Exception) {
+                Log.e("WealthTracker", "Error importing data", e)
+                withContext(Dispatchers.Main) { onComplete(false) }
+            }
+        }
     }
 }

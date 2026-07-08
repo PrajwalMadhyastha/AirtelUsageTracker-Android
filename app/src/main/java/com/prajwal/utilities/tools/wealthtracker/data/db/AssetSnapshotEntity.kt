@@ -2,6 +2,7 @@ package com.prajwal.utilities.tools.wealthtracker.data.db
 
 import androidx.room.Entity
 import androidx.room.PrimaryKey
+import com.squareup.moshi.JsonClass
 
 /**
  * A single timestamped snapshot of the user's entire portfolio.
@@ -9,6 +10,7 @@ import androidx.room.PrimaryKey
  * This enables the portfolio growth-over-time chart.
  */
 @Entity(tableName = "asset_snapshots")
+@JsonClass(generateAdapter = true)
 data class AssetSnapshotEntity(
     @PrimaryKey(autoGenerate = true) val id: Int = 0,
     val recordedAt: Long = System.currentTimeMillis(), // epoch ms

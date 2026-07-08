@@ -2,8 +2,10 @@ package com.prajwal.utilities.tools.wealthtracker.data.db
 
 import androidx.room.Entity
 import androidx.room.PrimaryKey
+import com.squareup.moshi.JsonClass
 
 @Entity(tableName = "holdings")
+@JsonClass(generateAdapter = true)
 data class HoldingEntity(
     @PrimaryKey(autoGenerate = true)
     val id: Int = 0,

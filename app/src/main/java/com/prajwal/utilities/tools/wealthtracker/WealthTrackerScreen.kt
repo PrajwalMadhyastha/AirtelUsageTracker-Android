@@ -26,6 +26,10 @@ import com.prajwal.utilities.tools.wealthtracker.tabs.MilestonesTab
 import com.prajwal.utilities.tools.wealthtracker.tabs.PortfolioTab
 import com.prajwal.utilities.tools.wealthtracker.tabs.ReportsTab
 import androidx.compose.material.icons.filled.List
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import android.widget.Toast
 
 private enum class WealthTab(val label: String, val icon: ImageVector) {
     PORTFOLIO("Portfolio", Icons.Default.Wallet),
@@ -54,6 +58,24 @@ fun WealthTrackerScreen(
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val coroutineScope = rememberCoroutineScope()
+
+    val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
+        if (uri != null) {
+            viewModel.exportData(uri, context.contentResolver) { success ->
+                val msg = if (success) "Export successful" else "Export failed"
+                Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    val importLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) {
+            viewModel.importData(uri, context.contentResolver) { success ->
+                val msg = if (success) "Import successful" else "Import failed"
+                Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
 
     // Observe lifecycle to reset authentication on background
     DisposableEffect(lifecycleOwner) {
@@ -160,6 +182,30 @@ fun WealthTrackerScreen(
                                 contentDescription = "Toggle Biometric Lock"
                             )
                         }
+                    }
+
+                    var showMenu by remember { mutableStateOf(false) }
+                    IconButton(onClick = { showMenu = true }) {
+                        Icon(Icons.Default.MoreVert, contentDescription = "More Options")
+                    }
+                    DropdownMenu(
+                        expanded = showMenu,
+                        onDismissRequest = { showMenu = false }
+                    ) {
+                        DropdownMenuItem(
+                            text = { Text("Export Data") },
+                            onClick = {
+                                showMenu = false
+                                exportLauncher.launch("wealth_tracker_backup.json")
+                            }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Import Data") },
+                            onClick = {
+                                showMenu = false
+                                importLauncher.launch(arrayOf("application/json", "*/*"))
+                            }
+                        )
                     }
                 }
             )
