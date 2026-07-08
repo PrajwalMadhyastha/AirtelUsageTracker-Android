@@ -162,12 +162,10 @@ class WealthTrackerViewModel(
                     }
 
                     if (prices != null) {
-                        repository.updateHolding(
-                            holding.copy(
-                                latestPrice = prices.latestPrice,
-                                previousClosePrice = prices.previousClosePrice,
-                                lastUpdatedAt = System.currentTimeMillis()
-                            )
+                        repository.updateHoldingPrice(
+                            id = holding.id,
+                            price = prices.latestPrice,
+                            previousClosePrice = prices.previousClosePrice
                         )
                     }
                 }

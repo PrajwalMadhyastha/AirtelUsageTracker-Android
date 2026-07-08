@@ -30,12 +30,10 @@ class PortfolioSyncWorker(
                 }
 
                 if (prices != null) {
-                    holdingsDao.updateHolding(
-                        holding.copy(
-                            latestPrice = prices.latestPrice,
-                            previousClosePrice = prices.previousClosePrice,
-                            lastUpdatedAt = System.currentTimeMillis()
-                        )
+                    holdingsDao.updatePrice(
+                        id = holding.id,
+                        price = prices.latestPrice,
+                        previousClosePrice = prices.previousClosePrice
                     )
                 }
             }

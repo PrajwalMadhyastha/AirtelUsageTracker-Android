@@ -166,12 +166,43 @@ fun HoldingsTab(
                     val grouped = filteredHoldings.groupBy { it.assetClass }
                     grouped.forEach { (assetClass, classHoldings) ->
                         item {
-                            Text(
-                                text = assetClass,
-                                style = MaterialTheme.typography.titleMedium,
-                                color = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.padding(vertical = 8.dp)
-                            )
+                            val hasDayPL = classHoldings.any { it.previousClosePrice > 0 }
+                            val categoryDayGain = if (hasDayPL) {
+                                classHoldings.sumOf { holding ->
+                                    if (holding.previousClosePrice > 0) holding.unitsHeld * (holding.latestPrice - holding.previousClosePrice) else 0.0
+                                }
+                            } else 0.0
+
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 8.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = assetClass,
+                                    style = MaterialTheme.typography.titleMedium,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                                if (hasDayPL) {
+                                    val sign = if (categoryDayGain >= 0) "+" else "-"
+                                    val color = if (categoryDayGain >= 0) Color(0xFF16A34A) else MaterialTheme.colorScheme.error
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Text(
+                                            text = "Day's P/L: ",
+                                            style = MaterialTheme.typography.labelMedium,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                        Text(
+                                            text = "$sign${MilestoneCalculator.formatInrExact(kotlin.math.abs(categoryDayGain))}",
+                                            style = MaterialTheme.typography.titleSmall,
+                                            color = color,
+                                            fontWeight = FontWeight.Medium
+                                        )
+                                    }
+                                }
+                            }
                         }
                         items(classHoldings, key = { it.id }) { holding ->
                             HoldingCard(
@@ -290,7 +321,7 @@ fun HoldingCard(holding: HoldingEntity, onTopUp: () -> Unit, onEdit: () -> Unit,
                         Column(horizontalAlignment = Alignment.End) {
                             Text("Day's P&L", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             Text(
-                                "${if (dayGain >= 0) "+" else ""}${MilestoneCalculator.formatInrExact(kotlin.math.abs(dayGain))}",
+                                "${if (dayGain >= 0) "+" else "-"}${MilestoneCalculator.formatInrExact(kotlin.math.abs(dayGain))}",
                                 style = MaterialTheme.typography.bodySmall,
                                 fontWeight = FontWeight.Medium,
                                 color = if (dayGain >= 0) Color(0xFF16A34A) else MaterialTheme.colorScheme.error
