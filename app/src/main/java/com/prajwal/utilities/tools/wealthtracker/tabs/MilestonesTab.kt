@@ -6,6 +6,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -40,8 +41,41 @@ fun MilestonesTab(
     onStepupChange: (Double) -> Unit,
     onReturnChange: (Double) -> Unit
 ) {
-    val currentPortfolioValue = latestSnapshot?.totalCurrent ?: 0.0
-    val totalInvested = latestSnapshot?.totalInvested ?: 0.0
+    // FIX #20: Show a clear empty state instead of a projection based on ₹0.
+    // A new user who has added holdings but hasn't saved a snapshot would see confusing
+    // ">30 yr" milestone estimates for everything without this guard.
+    if (latestSnapshot == null) {
+        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.padding(32.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Info,
+                    contentDescription = null,
+                    modifier = Modifier.size(64.dp),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
+                )
+                Text(
+                    "No portfolio snapshot yet",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    "Go to the Portfolio tab, sync your live prices, then tap \"Save Live Snapshot\" to capture your current portfolio value. Your milestone projections will appear here.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                )
+            }
+        }
+        return
+    }
+
+    val currentPortfolioValue = latestSnapshot.totalCurrent
+    val totalInvested = latestSnapshot.totalInvested
+
 
     var monthlyText by remember(settings.monthlyInvestment) {
         mutableStateOf(settings.monthlyInvestment.toLong().toString())

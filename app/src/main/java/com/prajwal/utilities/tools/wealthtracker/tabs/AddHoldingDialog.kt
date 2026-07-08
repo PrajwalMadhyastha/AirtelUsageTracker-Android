@@ -23,7 +23,7 @@ fun AddHoldingDialog(
     var instrumentType by remember { mutableStateOf(holdingToEdit?.instrumentType ?: "Stock") }
     var identifier by remember { mutableStateOf(holdingToEdit?.identifier ?: "") }
     var exchange by remember { mutableStateOf(holdingToEdit?.exchange ?: "NSE") }
-    
+
     fun fmt(v: Double) = if (v > 0) { if (v % 1.0 == 0.0) v.toLong().toString() else v.toString() } else ""
     var unitsStr by remember { mutableStateOf(holdingToEdit?.let { fmt(it.unitsHeld) } ?: "") }
     var investedStr by remember { mutableStateOf(holdingToEdit?.let { fmt(it.investedAmount) } ?: "") }
@@ -39,8 +39,19 @@ fun AddHoldingDialog(
     var searchQuery by remember { mutableStateOf(holdingToEdit?.name ?: "") }
     var searchExpanded by remember { mutableStateOf(false) }
 
+    // FIX #16: Track whether user has attempted save for validation feedback
+    var saveAttempted by remember { mutableStateOf(false) }
+    val isSgb = instrumentType == "SGB"
+    val finalIdentifier = if (identifier.isNotBlank()) identifier else searchQuery.trim()
+    val identifierError = saveAttempted && finalIdentifier.isBlank()
+    val unitsError = saveAttempted && (unitsStr.toDoubleOrNull() ?: 0.0) <= 0.0
+    val investedError = saveAttempted && (investedStr.toDoubleOrNull() ?: 0.0) <= 0.0
+
+    // FIX #21: Only trigger autocomplete search for Stock/MF — not SGB
     LaunchedEffect(searchQuery, instrumentType) {
-        onSearchQueryChanged(searchQuery, instrumentType == "MF")
+        if (!isSgb) {
+            onSearchQueryChanged(searchQuery, instrumentType == "MF")
+        }
     }
 
     AlertDialog(
@@ -128,55 +139,72 @@ fun AddHoldingDialog(
                     }
                 }
 
-                // Autocomplete Dropdown
-                ExposedDropdownMenuBox(
-                    expanded = searchExpanded,
-                    onExpandedChange = { searchExpanded = it }
-                ) {
+                // FIX #21: For SGB, skip Yahoo autocomplete — show plain ticker field instead.
+                // SGB tickers are standard NSE codes (e.g. SGBAUG28); Yahoo search returns irrelevant results.
+                if (isSgb) {
                     OutlinedTextField(
-                        value = searchQuery,
-                        onValueChange = { searchQuery = it; searchExpanded = true },
-                        label = { Text(if (instrumentType == "MF") "Search Mutual Fund" else "Search Stock/ETF") },
-                        modifier = Modifier.menuAnchor().fillMaxWidth(),
-                        singleLine = true
+                        value = identifier,
+                        onValueChange = { identifier = it.uppercase(); saveAttempted = false },
+                        label = { Text("SGB Ticker (e.g. SGBAUG28)") },
+                        placeholder = { Text("SGBAUG28", color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)) },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        isError = identifierError,
+                        supportingText = if (identifierError) {{ Text("Enter the NSE SGB ticker symbol") }} else null
                     )
-                    if (searchResults.isNotEmpty()) {
-                        DropdownMenu(
-                            expanded = searchExpanded,
-                            onDismissRequest = { searchExpanded = false },
-                            modifier = Modifier.exposedDropdownSize(),
-                            properties = androidx.compose.ui.window.PopupProperties(focusable = false)
-                        ) {
-                            searchResults.forEach { result ->
-                                DropdownMenuItem(
-                                    text = {
-                                        Column {
-                                            Text(
-                                                text = result.name, 
-                                                style = MaterialTheme.typography.bodyLarge,
-                                                maxLines = 1,
-                                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
-                                            )
-                                            val subtext = buildString {
-                                                append(result.identifier)
-                                                if (result.exchange != null) {
-                                                    append(" • ${result.exchange}")
+                } else {
+                    // Autocomplete Dropdown for Stock / MF
+                    ExposedDropdownMenuBox(
+                        expanded = searchExpanded,
+                        onExpandedChange = { searchExpanded = it }
+                    ) {
+                        OutlinedTextField(
+                            value = searchQuery,
+                            onValueChange = { searchQuery = it; searchExpanded = true; saveAttempted = false },
+                            label = { Text(if (instrumentType == "MF") "Search Mutual Fund" else "Search Stock/ETF") },
+                            modifier = Modifier.menuAnchor().fillMaxWidth(),
+                            singleLine = true,
+                            isError = identifierError,
+                            supportingText = if (identifierError) {{ Text("Select a fund or stock from the search results") }} else null
+                        )
+                        if (searchResults.isNotEmpty()) {
+                            DropdownMenu(
+                                expanded = searchExpanded,
+                                onDismissRequest = { searchExpanded = false },
+                                modifier = Modifier.exposedDropdownSize(),
+                                properties = androidx.compose.ui.window.PopupProperties(focusable = false)
+                            ) {
+                                searchResults.forEach { result ->
+                                    DropdownMenuItem(
+                                        text = {
+                                            Column {
+                                                Text(
+                                                    text = result.name,
+                                                    style = MaterialTheme.typography.bodyLarge,
+                                                    maxLines = 1,
+                                                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                                                )
+                                                val subtext = buildString {
+                                                    append(result.identifier)
+                                                    if (result.exchange != null) {
+                                                        append(" • ${result.exchange}")
+                                                    }
                                                 }
+                                                Text(
+                                                    text = subtext,
+                                                    style = MaterialTheme.typography.bodySmall,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                )
                                             }
-                                            Text(
-                                                text = subtext, 
-                                                style = MaterialTheme.typography.bodySmall, 
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                                            )
+                                        },
+                                        onClick = {
+                                            searchQuery = result.name
+                                            identifier = result.identifier
+                                            if (result.exchange != null) exchange = result.exchange
+                                            searchExpanded = false
                                         }
-                                    },
-                                    onClick = {
-                                        searchQuery = result.name
-                                        identifier = result.identifier
-                                        if (result.exchange != null) exchange = result.exchange
-                                        searchExpanded = false
-                                    }
-                                )
+                                    )
+                                }
                             }
                         }
                     }
@@ -186,21 +214,25 @@ fun AddHoldingDialog(
                     // Units
                     OutlinedTextField(
                         value = unitsStr,
-                        onValueChange = { unitsStr = it },
+                        onValueChange = { unitsStr = it; saveAttempted = false },
                         label = { Text("Units") },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         singleLine = true,
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier.weight(1f),
+                        isError = unitsError,
+                        supportingText = if (unitsError) {{ Text("Required") }} else null
                     )
-                    
+
                     // Invested Amount
                     OutlinedTextField(
                         value = investedStr,
-                        onValueChange = { investedStr = it },
+                        onValueChange = { investedStr = it; saveAttempted = false },
                         label = { Text("Invested (₹)") },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         singleLine = true,
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier.weight(1f),
+                        isError = investedError,
+                        supportingText = if (investedError) {{ Text("Required") }} else null
                     )
                 }
             }
@@ -208,18 +240,18 @@ fun AddHoldingDialog(
         confirmButton = {
             TextButton(
                 onClick = {
+                    saveAttempted = true
                     val u = unitsStr.toDoubleOrNull() ?: 0.0
                     val i = investedStr.toDoubleOrNull() ?: 0.0
-                    
-                    val finalIdentifier = if (identifier.isNotBlank()) identifier else searchQuery.trim()
-                    
-                    if (finalIdentifier.isNotBlank() && u > 0 && i > 0) {
+                    val resolvedIdentifier = if (isSgb) identifier.trim() else finalIdentifier
+
+                    if (resolvedIdentifier.isNotBlank() && u > 0 && i > 0) {
                         val newHolding = HoldingEntity(
                             id = holdingToEdit?.id ?: 0,
                             assetClass = assetClass,
                             instrumentType = instrumentType,
-                            name = searchQuery.trim(),
-                            identifier = finalIdentifier,
+                            name = if (isSgb) resolvedIdentifier else searchQuery.trim(),
+                            identifier = resolvedIdentifier,
                             exchange = if (instrumentType == "MF") null else exchange,
                             unitsHeld = u,
                             investedAmount = i,

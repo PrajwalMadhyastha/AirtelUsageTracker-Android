@@ -249,6 +249,45 @@ fun PortfolioTab(
             }
         }
 
+        // ── Stale price warning (Fix #24) ─────────────────────────────────────
+        val sixHoursMs = 6 * 60 * 60 * 1000L
+        val now = System.currentTimeMillis()
+        val hasStalePrices = !isSyncing && holdings.any { h ->
+            h.latestPrice > 0 && (now - h.lastUpdatedAt) > sixHoursMs
+        }
+        if (hasStalePrices) {
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(
+                        containerColor = Color(0xFFFEF3C7)
+                    ),
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(12.dp),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("⚠️", style = MaterialTheme.typography.titleMedium)
+                        Column {
+                            Text(
+                                "Prices may be stale",
+                                style = MaterialTheme.typography.labelLarge,
+                                fontWeight = FontWeight.SemiBold,
+                                color = Color(0xFF92400E)
+                            )
+                            Text(
+                                "Some holdings haven't synced in 6+ hours. Tap \"Sync Live\" above to update prices before saving.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = Color(0xFF92400E)
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
         // ── Save button ───────────────────────────────────────────────
         item {
             Button(

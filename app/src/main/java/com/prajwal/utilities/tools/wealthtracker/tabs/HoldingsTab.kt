@@ -16,6 +16,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.graphics.Color
 import com.prajwal.utilities.tools.wealthtracker.data.MilestoneCalculator
 import com.prajwal.utilities.tools.wealthtracker.data.db.HoldingEntity
 import com.prajwal.utilities.tools.wealthtracker.data.network.AssetSearchResult
@@ -37,6 +38,29 @@ fun HoldingsTab(
     var showAddDialog by remember { mutableStateOf(false) }
     var holdingToEdit by remember { mutableStateOf<HoldingEntity?>(null) }
     var holdingToTopUp by remember { mutableStateOf<HoldingEntity?>(null) }
+    // FIX #18: Guard deletion behind a confirmation dialog (mirrors snapshot deletion in PortfolioTab)
+    var holdingToDelete by remember { mutableStateOf<HoldingEntity?>(null) }
+
+    holdingToDelete?.let { h ->
+        AlertDialog(
+            onDismissRequest = { holdingToDelete = null },
+            title = { Text("Delete Holding?") },
+            text = {
+                Text(
+                    "\"${h.name.ifBlank { h.identifier }}\" and all its data will be permanently removed. This cannot be undone."
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    onDeleteHolding(h)
+                    holdingToDelete = null
+                }) { Text("Delete", color = MaterialTheme.colorScheme.error) }
+            },
+            dismissButton = {
+                TextButton(onClick = { holdingToDelete = null }) { Text("Cancel") }
+            }
+        )
+    }
 
     if (holdingToTopUp != null) {
         TopUpDialog(
@@ -154,7 +178,7 @@ fun HoldingsTab(
                                 holding = holding,
                                 onTopUp = { holdingToTopUp = holding },
                                 onEdit = { holdingToEdit = holding },
-                                onDelete = { onDeleteHolding(holding) }
+                                onDelete = { holdingToDelete = holding }
                             )
                         }
                     }
@@ -241,8 +265,40 @@ fun HoldingCard(holding: HoldingEntity, onTopUp: () -> Unit, onEdit: () -> Unit,
                 }
             }
 
+            Spacer(Modifier.height(8.dp))
+
             if (holding.latestPrice > 0) {
-                Spacer(Modifier.height(4.dp))
+                HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
+                Spacer(Modifier.height(8.dp))
+                // FIX #22: Show Avg Buy Price — a fundamental metric investors always need
+                val avgBuyPrice = if (holding.unitsHeld > 0) holding.investedAmount / holding.unitsHeld else 0.0
+                val dayGain = if (holding.previousClosePrice > 0)
+                    holding.unitsHeld * (holding.latestPrice - holding.previousClosePrice) else 0.0
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Column {
+                        Text("Avg Buy Price", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(
+                            MilestoneCalculator.formatInrExact(avgBuyPrice, showDecimals = true),
+                            style = MaterialTheme.typography.bodySmall,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                    if (holding.previousClosePrice > 0) {
+                        Column(horizontalAlignment = Alignment.End) {
+                            Text("Day's P&L", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(
+                                "${if (dayGain >= 0) "+" else ""}${MilestoneCalculator.formatInrExact(kotlin.math.abs(dayGain))}",
+                                style = MaterialTheme.typography.bodySmall,
+                                fontWeight = FontWeight.Medium,
+                                color = if (dayGain >= 0) Color(0xFF16A34A) else MaterialTheme.colorScheme.error
+                            )
+                        }
+                    }
+                }
+                Spacer(Modifier.height(6.dp))
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween
@@ -253,12 +309,19 @@ fun HoldingCard(holding: HoldingEntity, onTopUp: () -> Unit, onEdit: () -> Unit,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Text(
-                        "${if (gain >= 0) "+" else "-"}${MilestoneCalculator.formatInrExact(kotlin.math.abs(gain))} (${String.format("%.2f", gainPct)}%)",
+                        "${if (gain >= 0) "+" else "-"}${MilestoneCalculator.formatInrExact(kotlin.math.abs(gain))} (${"%.2f".format(gainPct)}%)",
                         style = MaterialTheme.typography.labelMedium,
                         color = if (gain >= 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
                         fontWeight = FontWeight.Bold
                     )
                 }
+            } else {
+                // FIX #22 / hint: tell user why values are missing instead of silent "-"
+                Text(
+                    "Prices not yet synced — tap \"Sync Live\" to fetch live prices",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
         }
     }
@@ -272,6 +335,10 @@ fun TopUpDialog(
 ) {
     var newUnitsStr by remember { mutableStateOf("") }
     var newInvestedStr by remember { mutableStateOf("") }
+    // FIX #17: Track validation state so user gets clear errors instead of silent nothing
+    var saveAttempted by remember { mutableStateOf(false) }
+    val unitsError = saveAttempted && (newUnitsStr.toDoubleOrNull() ?: 0.0) <= 0.0
+    val investedError = saveAttempted && (newInvestedStr.toDoubleOrNull() ?: 0.0) <= 0.0
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -285,23 +352,28 @@ fun TopUpDialog(
                 )
                 OutlinedTextField(
                     value = newUnitsStr,
-                    onValueChange = { newUnitsStr = it },
+                    onValueChange = { newUnitsStr = it; saveAttempted = false },
                     label = { Text("New Units Bought") },
                     keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number),
-                    singleLine = true
+                    singleLine = true,
+                    isError = unitsError,
+                    supportingText = if (unitsError) {{ Text("Enter a valid number of units greater than 0") }} else null
                 )
                 OutlinedTextField(
                     value = newInvestedStr,
-                    onValueChange = { newInvestedStr = it },
+                    onValueChange = { newInvestedStr = it; saveAttempted = false },
                     label = { Text("New Amount Invested (₹)") },
                     keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number),
-                    singleLine = true
+                    singleLine = true,
+                    isError = investedError,
+                    supportingText = if (investedError) {{ Text("Enter the amount invested in ₹") }} else null
                 )
             }
         },
         confirmButton = {
             TextButton(
                 onClick = {
+                    saveAttempted = true
                     val newUnits = newUnitsStr.toDoubleOrNull() ?: 0.0
                     val newInv = newInvestedStr.toDoubleOrNull() ?: 0.0
                     if (newUnits > 0 && newInv > 0) {

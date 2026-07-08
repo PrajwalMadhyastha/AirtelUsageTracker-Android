@@ -28,6 +28,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import kotlin.math.min
+import kotlin.math.pow
 
 // Color palette for the 5 asset classes
 private val assetColors = listOf(
@@ -65,7 +66,18 @@ fun ReportsTab(
     }
 
     val latest = snapshots.first()
+    val oldest = snapshotsChronological.first()
     val allAssetClasses = latest.toAssetClasses()
+
+    // FIX #23: CAGR / annualised return calculation
+    val durationMs = latest.recordedAt - oldest.recordedAt
+    val durationYears = durationMs / (365.25 * 24.0 * 3600.0 * 1000.0)
+    val absoluteReturnPct = if (latest.totalInvested > 0)
+        ((latest.totalCurrent - latest.totalInvested) / latest.totalInvested) * 100.0
+    else 0.0
+    val cagr: Double? = if (durationYears >= 1.0 && latest.totalInvested > 0)
+        ((latest.totalCurrent / latest.totalInvested).pow(1.0 / durationYears) - 1.0) * 100.0
+    else null
 
     // Toggle: show Invested or Current value breakdown in the donut
     var showInvested by remember { mutableStateOf(false) }
@@ -77,6 +89,75 @@ fun ReportsTab(
         contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
+        // ── Section 0: Returns ───────────────────────────────────────────────
+        item {
+            Text("Returns", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+        }
+        item {
+            val returnPositive = absoluteReturnPct >= 0
+            val returnColor = if (returnPositive) Color(0xFF16A34A) else MaterialTheme.colorScheme.error
+            Card(modifier = Modifier.fillMaxWidth(), elevation = CardDefaults.cardElevation(2.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(20.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    // Absolute Return
+                    Card(
+                        modifier = Modifier.weight(1f),
+                        colors = CardDefaults.cardColors(containerColor = returnColor.copy(alpha = 0.1f))
+                    ) {
+                        Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text("Absolute Return", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(
+                                "${if (returnPositive) "+" else ""}${"%.2f".format(absoluteReturnPct)}%",
+                                style = MaterialTheme.typography.titleLarge,
+                                fontWeight = FontWeight.Bold,
+                                color = returnColor
+                            )
+                        }
+                    }
+                    // CAGR
+                    val cagrPositive = cagr != null && cagr >= 0
+                    Card(
+                        modifier = Modifier.weight(1f),
+                        colors = CardDefaults.cardColors(
+                            containerColor = if (cagrPositive) Color(0xFF6366F1).copy(alpha = 0.1f)
+                            else MaterialTheme.colorScheme.surfaceVariant
+                        )
+                    ) {
+                        Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text("CAGR", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            if (cagr != null) {
+                                Text(
+                                    "${if (cagr >= 0) "+" else ""}${"%.2f".format(cagr)}% / yr",
+                                    style = MaterialTheme.typography.titleLarge,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (cagrPositive) Color(0xFF6366F1) else MaterialTheme.colorScheme.error
+                                )
+                                Text(
+                                    "${"%.1f".format(durationYears)} yr track record",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            } else {
+                                Text(
+                                    "—",
+                                    style = MaterialTheme.typography.titleLarge,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Text(
+                                    "Need 1+ yr of snapshots",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         // ── Section A: Diversification ───────────────────────────────────────
         item {
             Text(
@@ -85,6 +166,7 @@ fun ReportsTab(
                 fontWeight = FontWeight.Bold
             )
         }
+
 
         item {
             Card(modifier = Modifier.fillMaxWidth(), elevation = CardDefaults.cardElevation(2.dp)) {
@@ -293,7 +375,9 @@ private fun GrowthLineChart(
         if (investedSeries.size < 2) return@Canvas
 
         val allValues = investedSeries + currentSeries
-        val minVal = allValues.minOrNull() ?: 0f
+        // FIX #19: Y-axis must start at 0. Starting at minVal exaggerates growth —
+        // a 5% return would look like a near-vertical line on a chart with no zero baseline.
+        val minVal = 0f
         val maxVal = allValues.maxOrNull()?.takeIf { it > minVal } ?: (minVal + 1f)
         val n = investedSeries.size
 
