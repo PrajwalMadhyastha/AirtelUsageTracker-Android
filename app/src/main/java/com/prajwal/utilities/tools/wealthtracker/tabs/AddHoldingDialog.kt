@@ -149,7 +149,27 @@ fun AddHoldingDialog(
                         ) {
                             searchResults.forEach { result ->
                                 DropdownMenuItem(
-                                    text = { Text(result.name) },
+                                    text = {
+                                        Column {
+                                            Text(
+                                                text = result.name, 
+                                                style = MaterialTheme.typography.bodyLarge,
+                                                maxLines = 1,
+                                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                                            )
+                                            val subtext = buildString {
+                                                append(result.identifier)
+                                                if (result.exchange != null) {
+                                                    append(" • ${result.exchange}")
+                                                }
+                                            }
+                                            Text(
+                                                text = subtext, 
+                                                style = MaterialTheme.typography.bodySmall, 
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
+                                    },
                                     onClick = {
                                         searchQuery = result.name
                                         identifier = result.identifier
