@@ -10,6 +10,7 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -49,6 +50,7 @@ fun HoldingsTab(
         )
     }
 
+    @OptIn(ExperimentalMaterial3Api::class)
     Box(modifier = Modifier.fillMaxSize()) {
         Column(modifier = Modifier.fillMaxSize()) {
             // Header with Sync Button
@@ -82,9 +84,41 @@ fun HoldingsTab(
                 }
             }
 
-            if (holdings.isEmpty()) {
+            // Filter Row
+            val filters = listOf("All", "Stocks", "Mutual Funds", "Gold", "Debt", "Silver", "REITs")
+            var selectedFilter by remember { mutableStateOf("All") }
+            
+            LazyRow(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 0.dp)
+                    .padding(bottom = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                items(filters) { filter ->
+                    FilterChip(
+                        selected = selectedFilter == filter,
+                        onClick = { selectedFilter = filter },
+                        label = { Text(filter) }
+                    )
+                }
+            }
+
+            val filteredHoldings = holdings.filter {
+                when (selectedFilter) {
+                    "All" -> true
+                    "Stocks" -> it.instrumentType == "Stock"
+                    "Mutual Funds" -> it.instrumentType == "MF"
+                    else -> it.assetClass == selectedFilter
+                }
+            }
+
+            if (filteredHoldings.isEmpty()) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text("No holdings added yet. Tap + to add.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(
+                        if (holdings.isEmpty()) "No holdings added yet. Tap + to add." else "No holdings match this filter.", 
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
             } else {
                 LazyColumn(
@@ -92,7 +126,7 @@ fun HoldingsTab(
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                     modifier = Modifier.padding(horizontal = 16.dp)
                 ) {
-                    val grouped = holdings.groupBy { it.assetClass }
+                    val grouped = filteredHoldings.groupBy { it.assetClass }
                     grouped.forEach { (assetClass, classHoldings) ->
                         item {
                             Text(
