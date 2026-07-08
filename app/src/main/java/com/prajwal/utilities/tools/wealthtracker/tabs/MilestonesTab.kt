@@ -1,11 +1,11 @@
 package com.prajwal.utilities.tools.wealthtracker.tabs
 
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -16,13 +16,14 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.dp
 import com.prajwal.utilities.tools.wealthtracker.data.CalculatorSettings
 import com.prajwal.utilities.tools.wealthtracker.data.MilestoneCalculator
 import com.prajwal.utilities.tools.wealthtracker.data.db.AssetSnapshotEntity
-import kotlin.math.roundToInt
 
 private val milestoneTargets = listOf(
     Triple("1 Cr", 1_00_00_000.0, Color(0xFF6366F1)),
@@ -40,7 +41,6 @@ fun MilestonesTab(
 ) {
     val currentPortfolioValue = latestSnapshot?.totalCurrent ?: 0.0
 
-    // Local text state for the three input fields
     var monthlyText by remember(settings.monthlyInvestment) {
         mutableStateOf(settings.monthlyInvestment.toLong().toString())
     }
@@ -51,7 +51,6 @@ fun MilestonesTab(
         mutableStateOf(settings.expectedReturnPercent.toString())
     }
 
-    // Recalculate milestones whenever settings change
     val results = remember(currentPortfolioValue, settings) {
         MilestoneCalculator.calculate(
             currentPortfolioValue = currentPortfolioValue,
@@ -73,7 +72,9 @@ fun MilestonesTab(
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
             ) {
                 Row(
-                    modifier = Modifier.fillMaxWidth().padding(16.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -108,11 +109,14 @@ fun MilestonesTab(
 
         item {
             Card(modifier = Modifier.fillMaxWidth(), elevation = CardDefaults.cardElevation(2.dp)) {
-                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
                     SettingField(
                         label = "Monthly SIP",
                         value = monthlyText,
-                        suffix = "₹/month",
+                        suffix = "₹ / month",
                         onValueChange = { monthlyText = it },
                         onDone = { monthlyText.toDoubleOrNull()?.let(onMonthlyInvestmentChange) }
                     )
@@ -165,13 +169,13 @@ fun MilestonesTab(
         // ── Projection chart ─────────────────────────────────────────
         item {
             Text(
-                "Projection Chart",
+                "Portfolio Projection",
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold,
                 modifier = Modifier.padding(top = 4.dp)
             )
             Text(
-                "Projected portfolio value over time with milestone markers",
+                "Growth curve with milestone crossover markers",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -179,7 +183,7 @@ fun MilestonesTab(
 
         item {
             Card(modifier = Modifier.fillMaxWidth(), elevation = CardDefaults.cardElevation(2.dp)) {
-                Column(modifier = Modifier.padding(20.dp)) {
+                Column(modifier = Modifier.padding(16.dp)) {
                     val projectionPoints = results.firstOrNull()?.projectionPoints ?: emptyList()
                     if (projectionPoints.size >= 2) {
                         ProjectionChart(
@@ -187,16 +191,44 @@ fun MilestonesTab(
                             milestones = milestoneTargets.map { (label, value, color) ->
                                 Triple(label, value.toFloat(), color)
                             },
-                            modifier = Modifier.fillMaxWidth().height(220.dp)
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(260.dp)
                         )
-                        Spacer(Modifier.height(8.dp))
-                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                            Text("Now", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            Text("${projectionPoints.last().year} yrs", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Spacer(Modifier.height(12.dp))
+                        // Legend
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            milestoneTargets.forEach { (label, _, color) ->
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Surface(
+                                        modifier = Modifier.size(10.dp),
+                                        shape = androidx.compose.foundation.shape.CircleShape,
+                                        color = color
+                                    ) {}
+                                    Spacer(Modifier.width(4.dp))
+                                    Text(
+                                        "₹$label",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
                         }
                     } else {
-                        Box(modifier = Modifier.fillMaxWidth().height(100.dp), contentAlignment = Alignment.Center) {
-                            Text("Configure settings above to see projection.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(100.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                "Configure settings above to see projection.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
                         }
                     }
                 }
@@ -226,7 +258,7 @@ private fun SettingField(
             value = value,
             onValueChange = {
                 onValueChange(it)
-                it.toDoubleOrNull()?.let { v -> onDone() }
+                it.toDoubleOrNull()?.let { _ -> onDone() }
             },
             modifier = Modifier.width(130.dp),
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
@@ -249,9 +281,7 @@ private fun MilestoneCard(
 
     Card(
         modifier = modifier,
-        colors = CardDefaults.cardColors(
-            containerColor = color.copy(alpha = 0.12f)
-        )
+        colors = CardDefaults.cardColors(containerColor = color.copy(alpha = 0.12f))
     ) {
         Column(
             modifier = Modifier.padding(12.dp),
@@ -265,7 +295,18 @@ private fun MilestoneCard(
                 color = color
             )
             if (alreadyReached) {
-                Text("✅ Done!", style = MaterialTheme.typography.labelMedium, color = Color(0xFF10B981), fontWeight = FontWeight.Bold)
+                Icon(
+                    imageVector = Icons.Default.CheckCircle,
+                    contentDescription = "Reached",
+                    tint = Color(0xFF10B981),
+                    modifier = Modifier.size(18.dp)
+                )
+                Text(
+                    "Reached",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = Color(0xFF10B981),
+                    fontWeight = FontWeight.Bold
+                )
             } else if (result != null && result.monthsToReach > 0) {
                 val years = result.monthsToReach / 12
                 val months = result.monthsToReach % 12
@@ -290,58 +331,159 @@ private fun MilestoneCard(
     }
 }
 
+/**
+ * Projection chart with:
+ *  - Right-side Y labels: milestone dashed lines labeled with ₹ amount
+ *  - Bottom X labels: "Now", "5y", "10y" ... every 5 years
+ *  - Filled curve showing projected portfolio value
+ *  - Colored crossover dots + "Yr N" callouts where curve hits each milestone
+ */
 @Composable
 private fun ProjectionChart(
     points: List<Float>,
     milestones: List<Triple<String, Float, Color>>,
     modifier: Modifier = Modifier
 ) {
-    val lineColor = Color(0xFF6366F1)
+    val textMeasurer = rememberTextMeasurer()
+    val axisStyle = MaterialTheme.typography.labelSmall
+    val onSurfaceVariant = MaterialTheme.colorScheme.onSurfaceVariant
 
     Canvas(modifier = modifier) {
         if (points.size < 2) return@Canvas
 
-        val paddingTop = 24f
-        val paddingBottom = 24f
-        val paddingStart = 0f
+        // Measure a reference label to determine axis padding
+        val refLayout = textMeasurer.measure("30y", style = axisStyle)
+        val textH = refLayout.size.height.toFloat()
+        val textW = refLayout.size.width.toFloat()
 
+        val paddingTop = textH * 2.4f      // space for "Yr N" callout labels above dots
+        val paddingBottom = textH * 1.8f   // space for X-axis year labels
+        val paddingLeft = 8f
+        val paddingRight = textW * 3.4f    // space for milestone labels on the right
+
+        val chartWidth = size.width - paddingLeft - paddingRight
         val chartHeight = size.height - paddingTop - paddingBottom
-        val chartWidth = size.width - paddingStart
+        val n = points.size
 
-        val maxVal = (points.maxOrNull() ?: 1f).coerceAtLeast(milestones.maxOfOrNull { it.second } ?: 1f)
-        val minVal = 0f
+        val maxProjection = points.maxOrNull() ?: 1f
+        val visibleMilestones = milestones.filter { it.second <= maxProjection * 1.5f }
+        val maxVal = maxOf(
+            maxProjection,
+            visibleMilestones.maxOfOrNull { it.second } ?: maxProjection
+        ) * 1.08f
 
-        fun xOf(i: Int) = paddingStart + i.toFloat() / (points.size - 1) * chartWidth
-        fun yOf(v: Float) = paddingTop + chartHeight - ((v - minVal) / (maxVal - minVal)) * chartHeight
+        fun xOf(i: Int) = paddingLeft + i.toFloat() / (n - 1).coerceAtLeast(1) * chartWidth
+        fun yOf(v: Float): Float {
+            val ratio = (v / maxVal).coerceIn(0f, 1f)
+            return paddingTop + chartHeight * (1f - ratio)
+        }
 
-        // Draw milestone horizontal dashed lines
-        milestones.forEach { (label, value, color) ->
-            if (value <= maxVal * 1.1f) {
-                val y = yOf(value)
-                drawLine(
-                    color = color.copy(alpha = 0.5f),
-                    start = Offset(0f, y),
-                    end = Offset(size.width, y),
-                    strokeWidth = 1.5f,
-                    pathEffect = PathEffect.dashPathEffect(floatArrayOf(10f, 6f))
+        // ── Milestone dashed lines + right-side amount labels ─────────
+        visibleMilestones.forEach { (label, value, color) ->
+            val y = yOf(value)
+            drawLine(
+                color = color.copy(alpha = 0.35f),
+                start = Offset(paddingLeft, y),
+                end = Offset(size.width - paddingRight, y),
+                strokeWidth = 1.5f,
+                pathEffect = PathEffect.dashPathEffect(floatArrayOf(8f, 5f))
+            )
+            val labelLayout = textMeasurer.measure(
+                "₹$label",
+                style = axisStyle.copy(color = color, fontWeight = FontWeight.Bold)
+            )
+            drawText(
+                textLayoutResult = labelLayout,
+                topLeft = Offset(
+                    x = size.width - paddingRight + 6f,
+                    y = y - labelLayout.size.height / 2f
                 )
-            }
+            )
         }
 
-        // Draw projection curve
-        val path = Path()
+        // ── X-axis ticks + year labels every 5 years ──────────────────
+        val yearStep = 5
+        for (year in 0 until n step yearStep) {
+            val x = xOf(year)
+            drawLine(
+                color = Color.Gray.copy(alpha = 0.25f),
+                start = Offset(x, paddingTop + chartHeight),
+                end = Offset(x, paddingTop + chartHeight + 5f),
+                strokeWidth = 1.5f
+            )
+            val lbl = if (year == 0) "Now" else "${year}y"
+            val lblLayout = textMeasurer.measure(lbl, style = axisStyle.copy(color = onSurfaceVariant))
+            drawText(
+                textLayoutResult = lblLayout,
+                topLeft = Offset(
+                    x = x - lblLayout.size.width / 2f,
+                    y = size.height - lblLayout.size.height
+                )
+            )
+        }
+        // Always label the last year if it isn't a multiple of yearStep
+        val lastYear = n - 1
+        if (lastYear % yearStep != 0) {
+            val lastLayout = textMeasurer.measure("${lastYear}y", style = axisStyle.copy(color = onSurfaceVariant))
+            drawText(
+                textLayoutResult = lastLayout,
+                topLeft = Offset(
+                    x = xOf(lastYear) - lastLayout.size.width / 2f,
+                    y = size.height - lastLayout.size.height
+                )
+            )
+        }
+
+        // ── Projection curve + fill ───────────────────────────────────
+        val lineColor = Color(0xFF6366F1)
+        val curvePath = Path()
         points.forEachIndexed { i, v ->
-            if (i == 0) path.moveTo(xOf(i), yOf(v)) else path.lineTo(xOf(i), yOf(v))
+            if (i == 0) curvePath.moveTo(xOf(i), yOf(v)) else curvePath.lineTo(xOf(i), yOf(v))
         }
-        drawPath(path, color = lineColor, style = Stroke(width = 3f, cap = StrokeCap.Round))
-
-        // Fill under curve
         val fillPath = Path().apply {
-            addPath(path)
-            lineTo(xOf(points.size - 1), size.height)
-            lineTo(xOf(0), size.height)
+            addPath(curvePath)
+            lineTo(xOf(n - 1), paddingTop + chartHeight)
+            lineTo(paddingLeft, paddingTop + chartHeight)
             close()
         }
-        drawPath(fillPath, color = lineColor.copy(alpha = 0.08f))
+        drawPath(fillPath, color = lineColor.copy(alpha = 0.1f))
+        drawPath(curvePath, color = lineColor, style = Stroke(width = 3f, cap = StrokeCap.Round))
+
+        // ── Crossover markers: dot + "Yr N" callout ───────────────────
+        milestones.forEach { (_, value, color) ->
+            if (value > maxVal) return@forEach
+            val crossIdx = points.indexOfFirst { it >= value }
+            if (crossIdx <= 0 || crossIdx >= n) return@forEach
+
+            val x = xOf(crossIdx)
+            val y = yOf(value)
+
+            // Vertical dashed drop from dot to X-axis
+            drawLine(
+                color = color.copy(alpha = 0.3f),
+                start = Offset(x, y),
+                end = Offset(x, paddingTop + chartHeight),
+                strokeWidth = 1f,
+                pathEffect = PathEffect.dashPathEffect(floatArrayOf(4f, 3f))
+            )
+
+            // Halo + solid dot + white core
+            drawCircle(color.copy(alpha = 0.2f), radius = 14f, center = Offset(x, y))
+            drawCircle(color, radius = 8f, center = Offset(x, y))
+            drawCircle(Color.White, radius = 4f, center = Offset(x, y))
+
+            // "Yr N" label above the dot
+            val calloutLayout = textMeasurer.measure(
+                "Yr $crossIdx",
+                style = axisStyle.copy(color = color, fontWeight = FontWeight.Bold)
+            )
+            drawText(
+                textLayoutResult = calloutLayout,
+                topLeft = Offset(
+                    x = x - calloutLayout.size.width / 2f,
+                    y = (y - calloutLayout.size.height - 10f).coerceAtLeast(0f)
+                )
+            )
+        }
     }
 }

@@ -1,6 +1,10 @@
 package com.prajwal.utilities.tools.wealthtracker.tabs
 
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -8,6 +12,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
@@ -24,16 +29,12 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.prajwal.utilities.tools.wealthtracker.data.MilestoneCalculator
 import com.prajwal.utilities.tools.wealthtracker.data.db.AssetSnapshotEntity
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
-
-private data class AssetInputState(
-    val label: String,
-    val emoji: String,
-    var invested: String = "",
-    var current: String = ""
-)
+import kotlin.math.abs
 
 @Composable
 fun PortfolioTab(
@@ -53,22 +54,61 @@ fun PortfolioTab(
     var reitsInvested by remember { mutableStateOf("") }
     var reitsCurrent by remember { mutableStateOf("") }
     var snapshotToDelete by remember { mutableStateOf<AssetSnapshotEntity?>(null) }
+    var justSaved by remember { mutableStateOf(false) }
+    val coroutineScope = rememberCoroutineScope()
 
     // Pre-fill from latest snapshot when it arrives
     LaunchedEffect(prefill) {
         prefill?.let { s ->
-            equityInvested = if (s.equityInvested > 0) s.equityInvested.toLong().toString() else ""
-            equityCurrent = if (s.equityCurrent > 0) s.equityCurrent.toLong().toString() else ""
-            goldInvested = if (s.goldInvested > 0) s.goldInvested.toLong().toString() else ""
-            goldCurrent = if (s.goldCurrent > 0) s.goldCurrent.toLong().toString() else ""
-            debtInvested = if (s.debtInvested > 0) s.debtInvested.toLong().toString() else ""
-            debtCurrent = if (s.debtCurrent > 0) s.debtCurrent.toLong().toString() else ""
-            silverInvested = if (s.silverInvested > 0) s.silverInvested.toLong().toString() else ""
-            silverCurrent = if (s.silverCurrent > 0) s.silverCurrent.toLong().toString() else ""
-            reitsInvested = if (s.reitsInvested > 0) s.reitsInvested.toLong().toString() else ""
-            reitsCurrent = if (s.reitsCurrent > 0) s.reitsCurrent.toLong().toString() else ""
+            fun fmt(v: Double) = if (v > 0) v.toLong().toString() else ""
+            equityInvested = fmt(s.equityInvested)
+            equityCurrent = fmt(s.equityCurrent)
+            goldInvested = fmt(s.goldInvested)
+            goldCurrent = fmt(s.goldCurrent)
+            debtInvested = fmt(s.debtInvested)
+            debtCurrent = fmt(s.debtCurrent)
+            silverInvested = fmt(s.silverInvested)
+            silverCurrent = fmt(s.silverCurrent)
+            reitsInvested = fmt(s.reitsInvested)
+            reitsCurrent = fmt(s.reitsCurrent)
         }
     }
+
+    // Disable Save if form values match the pre-filled (latest) snapshot
+    val hasChanged = remember(
+        equityInvested, equityCurrent, goldInvested, goldCurrent,
+        debtInvested, debtCurrent, silverInvested, silverCurrent,
+        reitsInvested, reitsCurrent, prefill
+    ) {
+        fun toD(s: String) = s.toDoubleOrNull() ?: 0.0
+        val p = prefill
+        when {
+            p == null -> listOf(
+                equityInvested, equityCurrent, goldInvested, goldCurrent,
+                debtInvested, debtCurrent, silverInvested, silverCurrent,
+                reitsInvested, reitsCurrent
+            ).any { toD(it) > 0 }
+            else ->
+                toD(equityInvested) != p.equityInvested ||
+                toD(equityCurrent) != p.equityCurrent ||
+                toD(goldInvested) != p.goldInvested ||
+                toD(goldCurrent) != p.goldCurrent ||
+                toD(debtInvested) != p.debtInvested ||
+                toD(debtCurrent) != p.debtCurrent ||
+                toD(silverInvested) != p.silverInvested ||
+                toD(silverCurrent) != p.silverCurrent ||
+                toD(reitsInvested) != p.reitsInvested ||
+                toD(reitsCurrent) != p.reitsCurrent
+        }
+    }
+
+    // Live totals (computed outside LazyColumn so they react immediately)
+    val totalInv = listOf(equityInvested, goldInvested, debtInvested, silverInvested, reitsInvested)
+        .sumOf { it.toDoubleOrNull() ?: 0.0 }
+    val totalCur = listOf(equityCurrent, goldCurrent, debtCurrent, silverCurrent, reitsCurrent)
+        .sumOf { it.toDoubleOrNull() ?: 0.0 }
+    val gain = totalCur - totalInv
+    val gainPositive = gain >= 0
 
     // Delete confirmation dialog
     snapshotToDelete?.let { snapshot ->
@@ -96,8 +136,78 @@ fun PortfolioTab(
         contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
+        // ── Live summary card — always visible at the top ─────────────
         item {
-            // Header gradient card
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(
+                    containerColor = if (gainPositive)
+                        MaterialTheme.colorScheme.primaryContainer
+                    else
+                        MaterialTheme.colorScheme.errorContainer
+                ),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp, vertical = 16.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
+                        Text(
+                            "Total Invested",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Text(
+                            MilestoneCalculator.formatInr(totalInv),
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            "P / L",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Text(
+                            "${if (gainPositive) "+" else "-"}${MilestoneCalculator.formatInr(abs(gain))}",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = if (gainPositive) MaterialTheme.colorScheme.primary
+                            else MaterialTheme.colorScheme.error
+                        )
+                        if (totalInv > 0) {
+                            val pct = (gain / totalInv * 100)
+                            Text(
+                                "${if (gainPositive) "+" else ""}${String.format("%.1f", pct)}%",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = if (gainPositive) MaterialTheme.colorScheme.primary
+                                else MaterialTheme.colorScheme.error
+                            )
+                        }
+                    }
+                    Column(horizontalAlignment = Alignment.End) {
+                        Text(
+                            "Current Value",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Text(
+                            MilestoneCalculator.formatInr(totalCur),
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+            }
+        }
+
+        // ── Header banner ─────────────────────────────────────────────
+        item {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -129,56 +239,14 @@ fun PortfolioTab(
             }
         }
 
-        // Asset input rows
-        item { AssetInputCard("📈", "Equity", "Mutual Funds + Stocks", equityInvested, equityCurrent, { equityInvested = it }, { equityCurrent = it }) }
-        item { AssetInputCard("🪙", "Gold", "Physical + Sovereign Bonds + ETFs", goldInvested, goldCurrent, { goldInvested = it }, { goldCurrent = it }) }
-        item { AssetInputCard("🏦", "Debt", "FD + Bonds + Liquid Funds", debtInvested, debtCurrent, { debtInvested = it }, { debtCurrent = it }) }
-        item { AssetInputCard("🥈", "Silver", "Physical + ETFs", silverInvested, silverCurrent, { silverInvested = it }, { silverCurrent = it }) }
-        item { AssetInputCard("🏢", "REITs", "Real Estate Investment Trusts", reitsInvested, reitsCurrent, { reitsInvested = it }, { reitsCurrent = it }) }
+        // ── Asset input cards ─────────────────────────────────────────
+        item { AssetInputCard("Equity", "Mutual Funds + Stocks", equityInvested, equityCurrent, { equityInvested = it }, { equityCurrent = it }) }
+        item { AssetInputCard("Gold", "Physical + Sovereign Bonds + ETFs", goldInvested, goldCurrent, { goldInvested = it }, { goldCurrent = it }) }
+        item { AssetInputCard("Debt", "FD + Bonds + Liquid Funds", debtInvested, debtCurrent, { debtInvested = it }, { debtCurrent = it }) }
+        item { AssetInputCard("Silver", "Physical + ETFs", silverInvested, silverCurrent, { silverInvested = it }, { silverCurrent = it }) }
+        item { AssetInputCard("REITs", "Real Estate Investment Trusts", reitsInvested, reitsCurrent, { reitsInvested = it }, { reitsCurrent = it }) }
 
-        item {
-            // Live total preview
-            val totalInv = listOf(equityInvested, goldInvested, debtInvested, silverInvested, reitsInvested)
-                .sumOf { it.toDoubleOrNull() ?: 0.0 }
-            val totalCur = listOf(equityCurrent, goldCurrent, debtCurrent, silverCurrent, reitsCurrent)
-                .sumOf { it.toDoubleOrNull() ?: 0.0 }
-            val gain = totalCur - totalInv
-            val gainPositive = gain >= 0
-
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(
-                    containerColor = if (gainPositive)
-                        MaterialTheme.colorScheme.primaryContainer
-                    else
-                        MaterialTheme.colorScheme.errorContainer
-                )
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(16.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Column {
-                        Text("Total Invested", style = MaterialTheme.typography.labelSmall)
-                        Text(MilestoneCalculator.formatInr(totalInv), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                    }
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("Gain / Loss", style = MaterialTheme.typography.labelSmall)
-                        Text(
-                            "${if (gainPositive) "+" else ""}${MilestoneCalculator.formatInr(gain)}",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = if (gainPositive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
-                        )
-                    }
-                    Column(horizontalAlignment = Alignment.End) {
-                        Text("Current Value", style = MaterialTheme.typography.labelSmall)
-                        Text(MilestoneCalculator.formatInr(totalCur), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                    }
-                }
-            }
-        }
-
+        // ── Save button ───────────────────────────────────────────────
         item {
             Button(
                 onClick = {
@@ -196,17 +264,42 @@ fun PortfolioTab(
                             reitsCurrent = reitsCurrent.toDoubleOrNull() ?: 0.0
                         )
                     )
+                    justSaved = true
+                    coroutineScope.launch {
+                        delay(2500)
+                        justSaved = false
+                    }
                 },
-                modifier = Modifier.fillMaxWidth().height(52.dp),
+                enabled = hasChanged && !justSaved,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(52.dp),
                 shape = RoundedCornerShape(12.dp)
             ) {
-                Icon(Icons.Default.Save, contentDescription = null)
-                Spacer(Modifier.width(8.dp))
-                Text("Save Snapshot", style = MaterialTheme.typography.titleSmall)
+                AnimatedContent(
+                    targetState = justSaved,
+                    transitionSpec = { fadeIn() togetherWith fadeOut() },
+                    label = "save_button_content"
+                ) { saved ->
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center
+                    ) {
+                        Icon(
+                            imageVector = if (saved) Icons.Default.Check else Icons.Default.Save,
+                            contentDescription = null
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            text = if (saved) "Snapshot Saved!" else "Save Snapshot",
+                            style = MaterialTheme.typography.titleSmall
+                        )
+                    }
+                }
             }
         }
 
-        // History
+        // ── Snapshot history ──────────────────────────────────────────
         if (snapshots.isNotEmpty()) {
             item {
                 Text(
@@ -228,7 +321,6 @@ fun PortfolioTab(
 
 @Composable
 private fun AssetInputCard(
-    emoji: String,
     label: String,
     subtitle: String,
     invested: String,
@@ -241,14 +333,12 @@ private fun AssetInputCard(
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(emoji, style = MaterialTheme.typography.titleLarge)
-                Spacer(Modifier.width(8.dp))
-                Column {
-                    Text(label, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
-                    Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-            }
+            Text(label, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+            Text(
+                subtitle,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
             Spacer(Modifier.height(12.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 OutlinedTextField(
@@ -285,7 +375,9 @@ private fun SnapshotHistoryCard(
     val gainPositive = gain >= 0
 
     Card(
-        modifier = Modifier.fillMaxWidth().animateContentSize(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .animateContentSize(),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
     ) {
         Column(modifier = Modifier.padding(12.dp)) {
@@ -306,9 +398,10 @@ private fun SnapshotHistoryCard(
                         fontWeight = FontWeight.Bold
                     )
                     Text(
-                        "${if (gainPositive) "▲ +" else "▼ "}${MilestoneCalculator.formatInr(gain)} (${String.format("%.1f", snapshot.totalGainLossPct)}%)",
+                        "${if (gainPositive) "+" else "-"}${MilestoneCalculator.formatInr(abs(gain))} (${String.format("%.1f", snapshot.totalGainLossPct)}%)",
                         style = MaterialTheme.typography.bodySmall,
-                        color = if (gainPositive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
+                        color = if (gainPositive) MaterialTheme.colorScheme.primary
+                        else MaterialTheme.colorScheme.error
                     )
                 }
                 Row {
@@ -319,7 +412,11 @@ private fun SnapshotHistoryCard(
                         )
                     }
                     IconButton(onClick = onDelete) {
-                        Icon(Icons.Default.Delete, contentDescription = "Delete", tint = MaterialTheme.colorScheme.error)
+                        Icon(
+                            Icons.Default.Delete,
+                            contentDescription = "Delete",
+                            tint = MaterialTheme.colorScheme.error
+                        )
                     }
                 }
             }
@@ -327,24 +424,25 @@ private fun SnapshotHistoryCard(
             if (expanded) {
                 HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
                 val assets = listOf(
-                    "📈 Equity" to Pair(snapshot.equityInvested, snapshot.equityCurrent),
-                    "🪙 Gold" to Pair(snapshot.goldInvested, snapshot.goldCurrent),
-                    "🏦 Debt" to Pair(snapshot.debtInvested, snapshot.debtCurrent),
-                    "🥈 Silver" to Pair(snapshot.silverInvested, snapshot.silverCurrent),
-                    "🏢 REITs" to Pair(snapshot.reitsInvested, snapshot.reitsCurrent)
+                    "Equity" to Pair(snapshot.equityInvested, snapshot.equityCurrent),
+                    "Gold" to Pair(snapshot.goldInvested, snapshot.goldCurrent),
+                    "Debt" to Pair(snapshot.debtInvested, snapshot.debtCurrent),
+                    "Silver" to Pair(snapshot.silverInvested, snapshot.silverCurrent),
+                    "REITs" to Pair(snapshot.reitsInvested, snapshot.reitsCurrent)
                 )
                 assets.forEach { (name, values) ->
                     val (inv, cur) = values
                     if (inv > 0 || cur > 0) {
                         Row(
-                            modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 2.dp),
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
-                            Text(name, style = MaterialTheme.typography.bodySmall)
+                            Text(name, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Medium)
                             Text(
                                 "${MilestoneCalculator.formatInr(inv)} → ${MilestoneCalculator.formatInr(cur)}",
-                                style = MaterialTheme.typography.bodySmall,
-                                fontWeight = FontWeight.Medium
+                                style = MaterialTheme.typography.bodySmall
                             )
                         }
                     }
