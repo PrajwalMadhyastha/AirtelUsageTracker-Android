@@ -10,7 +10,10 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 @Database(
     entities = [AssetSnapshotEntity::class, HoldingEntity::class],
     version = 4,
-    exportSchema = false
+    // FIX #6: exportSchema = true lets Room generate JSON schema files under app/schemas/.
+    // These are required for MigrationTestHelper — without them, every DB schema change
+    // is unverifiable and risks silent data loss in production.
+    exportSchema = true
 )
 abstract class WealthDatabase : RoomDatabase() {
 

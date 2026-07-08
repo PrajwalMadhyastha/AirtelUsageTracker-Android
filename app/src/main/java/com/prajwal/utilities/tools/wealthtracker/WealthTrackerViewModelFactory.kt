@@ -8,7 +8,7 @@ import com.prajwal.utilities.tools.wealthtracker.data.network.MarketDataReposito
 
 class WealthTrackerViewModelFactory(
     private val repository: WealthRepository,
-    private val marketDataRepository: MarketDataRepository,
+    private val marketDataRepository: MarketDataRepository = MarketDataRepository.getInstance(),
     private val prefs: WealthPreferences
 ) : ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {

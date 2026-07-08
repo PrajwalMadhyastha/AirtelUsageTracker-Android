@@ -22,6 +22,9 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import android.content.ContentResolver
 import android.net.Uri
 import android.util.Log
@@ -147,7 +150,10 @@ class WealthTrackerViewModel(
         viewModelScope.launch {
             _isSyncing.value = true
             try {
-                val currentHoldings = repository.getAllHoldings().stateIn(viewModelScope).value.ifEmpty { holdings.value }
+                // FIX #1: Use the already-subscribed `holdings` StateFlow directly.
+                // The previous code called .stateIn(viewModelScope).value on a cold Flow,
+                // which always returned an empty list before the first DB emission arrived.
+                val currentHoldings = holdings.value
                 for (holding in currentHoldings) {
                     val prices = if (holding.instrumentType == "MF") {
                         marketDataRepository.fetchMfNav(holding.identifier)

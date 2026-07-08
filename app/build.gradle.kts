@@ -67,6 +67,12 @@ android {
     }
 }
 
+// FIX #6: Tell Room's KSP processor where to write the JSON schema files.
+// Schemas are committed to version control so migrations can be tested with MigrationTestHelper.
+ksp {
+    arg("room.schemaLocation", "$projectDir/schemas")
+}
+
 dependencies {
     // Core Android
     implementation("androidx.core:core-ktx:1.12.0")

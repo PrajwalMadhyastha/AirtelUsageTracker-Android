@@ -22,6 +22,9 @@ interface HoldingsDao {
     @Delete
     suspend fun deleteHolding(holding: HoldingEntity)
 
-    @Query("UPDATE holdings SET latestPrice = :price, lastUpdatedAt = :timestamp WHERE id = :id")
-    suspend fun updatePrice(id: Int, price: Double, timestamp: Long = System.currentTimeMillis())
+    // FIX #3: Updated query now also writes previousClosePrice.
+    // The original query omitted it, causing Daily P/L to always show ₹0
+    // for any holding updated via this targeted query path.
+    @Query("UPDATE holdings SET latestPrice = :price, previousClosePrice = :previousClosePrice, lastUpdatedAt = :timestamp WHERE id = :id")
+    suspend fun updatePrice(id: Int, price: Double, previousClosePrice: Double, timestamp: Long = System.currentTimeMillis())
 }

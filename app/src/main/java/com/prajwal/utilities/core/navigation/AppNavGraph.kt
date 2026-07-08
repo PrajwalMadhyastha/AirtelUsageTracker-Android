@@ -207,7 +207,7 @@ fun AppNavHost(
                     db.holdingsDao()
                 )
             }
-            val marketRepo = remember { com.prajwal.utilities.tools.wealthtracker.data.network.MarketDataRepository() }
+            val marketRepo = remember { com.prajwal.utilities.tools.wealthtracker.data.network.MarketDataRepository.getInstance() }
             val prefs = remember { com.prajwal.utilities.tools.wealthtracker.data.WealthPreferences(context) }
             val viewModel: com.prajwal.utilities.tools.wealthtracker.WealthTrackerViewModel = viewModel(
                 factory = com.prajwal.utilities.tools.wealthtracker.WealthTrackerViewModelFactory(repository, marketRepo, prefs)

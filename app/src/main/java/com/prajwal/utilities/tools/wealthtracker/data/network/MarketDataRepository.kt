@@ -17,28 +17,46 @@ data class AssetPrices(
     val previousClosePrice: Double
 )
 
-class MarketDataRepository {
+// FIX #2: MarketDataRepository is now a singleton.
+// Previously, every ViewModel + every Worker invocation constructed a new OkHttpClient,
+// which creates a new thread pool and connection pool each time — a resource leak.
+// Now one shared instance is used across the entire app lifetime.
+class MarketDataRepository private constructor() {
+
+    companion object {
+        @Volatile
+        private var INSTANCE: MarketDataRepository? = null
+
+        fun getInstance(): MarketDataRepository {
+            return INSTANCE ?: synchronized(this) {
+                INSTANCE ?: MarketDataRepository().also { INSTANCE = it }
+            }
+        }
+
+        // Shared HTTP infrastructure — built once, reused everywhere.
+        val sharedOkHttpClient: okhttp3.OkHttpClient = okhttp3.OkHttpClient.Builder()
+            .connectTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
+            .readTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
+            .writeTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
+            .build()
+    }
+
     private val moshi = Moshi.Builder()
         .add(KotlinJsonAdapterFactory())
         .build()
 
-    private val okHttpClient = okhttp3.OkHttpClient.Builder()
-        .connectTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
-        .readTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
-        .writeTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
-        .build()
-
     private val retrofit = Retrofit.Builder()
         .baseUrl("https://localhost/") // Dummy URL as we pass absolute URLs
-        .client(okHttpClient)
+        .client(sharedOkHttpClient)
         .addConverterFactory(MoshiConverterFactory.create(moshi))
         .build()
 
     private val service = retrofit.create(MarketDataService::class.java)
 
+
     suspend fun fetchMfNav(schemeCode: String): AssetPrices? {
         if (schemeCode.startsWith("SGB", ignoreCase = true)) {
-            return fetchSgbPriceFromMoneycontrol(schemeCode, null)
+            return fetchSgbPrice(schemeCode, null)
         }
         return try {
             val response = service.getMfNav("https://api.mfapi.in/mf/$schemeCode")
@@ -49,14 +67,14 @@ class MarketDataRepository {
                 AssetPrices(latest, previous)
             } else null
         } catch (e: Exception) {
-            Log.e("MarketDataRepo", "Error fetching MF NAV", e)
+            Log.e("MarketDataRepo", "Error fetching MF NAV for $schemeCode", e)
             null
         }
     }
 
     suspend fun fetchStockPrice(ticker: String, exchange: String?): AssetPrices? {
         if (ticker.startsWith("SGB", ignoreCase = true)) {
-            return fetchSgbPriceFromMoneycontrol(ticker, exchange)
+            return fetchSgbPrice(ticker, exchange)
         }
         val suffix = when (exchange) {
             "NSE" -> ".NS"
@@ -64,7 +82,7 @@ class MarketDataRepository {
             else -> ""
         }
         val symbol = "$ticker$suffix"
-        
+
         return try {
             val response = service.getYahooChart("https://query2.finance.yahoo.com/v8/finance/chart/$symbol")
             val meta = response.chart?.result?.firstOrNull()?.meta
@@ -72,66 +90,137 @@ class MarketDataRepository {
                 AssetPrices(meta.regularMarketPrice, meta.chartPreviousClose ?: meta.regularMarketPrice)
             } else null
         } catch (e: Exception) {
-            e.printStackTrace()
+            Log.e("MarketDataRepo", "Error fetching stock price for $symbol", e)
             null
         }
     }
 
-    private suspend fun fetchSgbPriceFromMoneycontrol(ticker: String, exchange: String?): AssetPrices? = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+    /**
+     * FIX #5: Multi-source SGB price fetching with Yahoo Finance as primary.
+     *
+     * Strategy:
+     *  1. Try Yahoo Finance with standard NSE ticker (e.g. SGBAUG28.NS).
+     *     SGBs are listed on NSE and Yahoo Finance carries them reliably.
+     *     This reuses the same robust Retrofit path as all other stocks.
+     *  2. If Yahoo returns no price, fall back to Moneycontrol HTML scraping.
+     *     Multiple regex patterns are tried to survive minor DOM changes.
+     *     On failure, full diagnostic context is logged to Logcat so DOM
+     *     changes are immediately visible in development.
+     */
+    private suspend fun fetchSgbPrice(ticker: String, exchange: String?): AssetPrices? {
+        // Step 1: Try Yahoo Finance (NSE listing). SGBs trade as SGBXXX28.NS on Yahoo.
+        val cleanTicker = ticker
+            .replace("-GB", "")
+            .replace(".NS", "")
+            .replace(".BO", "")
+            .uppercase()
+
+        val yahooResult = tryYahooSgb(cleanTicker)
+        if (yahooResult != null) {
+            Log.d("MarketDataRepo", "SGB $cleanTicker: price fetched from Yahoo Finance")
+            return yahooResult
+        }
+
+        Log.w("MarketDataRepo", "SGB $cleanTicker: Yahoo Finance returned no price, falling back to Moneycontrol")
+
+        // Step 2: Moneycontrol fallback
+        return fetchSgbFromMoneycontrol(cleanTicker)
+    }
+
+    private suspend fun tryYahooSgb(cleanTicker: String): AssetPrices? {
+        return try {
+            val symbol = "$cleanTicker.NS"
+            val response = service.getYahooChart(
+                "https://query2.finance.yahoo.com/v8/finance/chart/$symbol"
+            )
+            val meta = response.chart?.result?.firstOrNull()?.meta
+            if (meta?.regularMarketPrice != null && meta.regularMarketPrice > 0) {
+                AssetPrices(
+                    latestPrice = meta.regularMarketPrice,
+                    previousClosePrice = meta.chartPreviousClose ?: meta.regularMarketPrice
+                )
+            } else null
+        } catch (e: Exception) {
+            Log.d("MarketDataRepo", "SGB Yahoo Finance fetch failed for $cleanTicker.NS: ${e.message}")
+            null
+        }
+    }
+
+    private suspend fun fetchSgbFromMoneycontrol(
+        cleanTicker: String
+    ): AssetPrices? = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
         try {
-            val cleanTicker = ticker.replace("-GB", "").replace(".NS", "").replace(".BO", "")
             val searchRequest = okhttp3.Request.Builder()
                 .url("https://www.moneycontrol.com/mccode/common/autosuggestion_solr.php?query=$cleanTicker&type=1&format=json")
-                .addHeader("User-Agent", "Mozilla/5.0")
+                .addHeader("User-Agent", "Mozilla/5.0 (Linux; Android 10)")
+                .addHeader("Accept", "application/json")
                 .build()
-                
-            val searchResponse = okHttpClient.newCall(searchRequest).execute()
-            if (!searchResponse.isSuccessful()) {
-                Log.e("MarketDataRepo", "Search failed with code ${searchResponse.code()}")
+
+            val searchResponse = sharedOkHttpClient.newCall(searchRequest).execute()
+            if (!searchResponse.isSuccessful) {
+                Log.e("MarketDataRepo", "SGB Moneycontrol search failed: HTTP ${searchResponse.code()} for $cleanTicker")
                 return@withContext null
             }
-            
+
             val searchBody = searchResponse.body()?.string() ?: ""
-            // Try to find the link_src in the JSON array
             val linkMatch = Regex(""""link_src"\s*:\s*"([^"]+)"""").find(searchBody)
-            if (linkMatch != null) {
-                val detailUrlStr = linkMatch.groupValues[1]
-                
-                val detailRequest = okhttp3.Request.Builder()
-                    .url(detailUrlStr)
-                    .addHeader("User-Agent", "Mozilla/5.0")
-                    .build()
-                    
-                val detailResponse = okHttpClient.newCall(detailRequest).execute()
-                if (!detailResponse.isSuccessful()) {
-                    Log.e("MarketDataRepo", "Detail failed with code ${detailResponse.code()}")
-                    return@withContext null
-                }
-                
-                val detailBody = detailResponse.body()?.string() ?: ""
-                
-                val nseMatch = Regex("""id="nsespotval"[^>]*value="([0-9,.]+)"""").find(detailBody)
-                val bseMatch = Regex("""id="bsespotval"[^>]*value="([0-9,.]+)"""").find(detailBody)
-                
-                val priceStr = nseMatch?.groupValues?.get(1) ?: bseMatch?.groupValues?.get(1)
-                val price = priceStr?.replace(",", "")?.toDoubleOrNull()
-                
-                // Parse previous close
-                val prevCloseMatch = Regex("""class="nseprvclose[^>]*>\s*([0-9,.]+)""").find(detailBody)
-                val prevCloseStr = prevCloseMatch?.groupValues?.get(1)
-                val prevClosePrice = prevCloseStr?.replace(",", "")?.toDoubleOrNull()
-                
-                if (price != null) {
-                    return@withContext AssetPrices(price, prevClosePrice ?: price) // Use parsed prevClose or default to price
-                } else {
-                    Log.e("MarketDataRepo", "Price not found in HTML. detailUrl: $detailUrlStr")
-                }
-            } else {
-                Log.e("MarketDataRepo", "Link not found in JSON. searchBody: $searchBody")
+
+            if (linkMatch == null) {
+                Log.e("MarketDataRepo",
+                    "SGB Moneycontrol: 'link_src' not found in search response for $cleanTicker. " +
+                    "Response preview: ${searchBody.take(500)}"
+                )
+                return@withContext null
             }
-            null
+
+            val detailUrlStr = linkMatch.groupValues[1]
+            Log.d("MarketDataRepo", "SGB Moneycontrol: fetching detail page $detailUrlStr")
+
+            val detailRequest = okhttp3.Request.Builder()
+                .url(detailUrlStr)
+                .addHeader("User-Agent", "Mozilla/5.0 (Linux; Android 10)")
+                .build()
+
+            val detailResponse = sharedOkHttpClient.newCall(detailRequest).execute()
+            if (!detailResponse.isSuccessful) {
+                Log.e("MarketDataRepo", "SGB Moneycontrol detail page failed: HTTP ${detailResponse.code()} ($detailUrlStr)")
+                return@withContext null
+            }
+
+            val detailBody = detailResponse.body()?.string() ?: ""
+
+            // Multiple price patterns to survive minor DOM changes:
+            val price = listOf(
+                Regex("""id="nsespotval"[^>]*value="([0-9,.]+)""""),   // Primary NSE field
+                Regex("""id="bsespotval"[^>]*value="([0-9,.]+)""""),   // BSE fallback field
+                Regex(""""nsespot"\s*:\s*"?([0-9,.]+)"?"""),           // JSON-in-HTML pattern
+                Regex("""class="[^"]*nseSpotPrice[^"]*"[^>]*>\s*([0-9,.]+)""")  // Class-based
+            ).firstNotNullOfOrNull { regex ->
+                regex.find(detailBody)?.groupValues?.get(1)?.replace(",", "")?.toDoubleOrNull()
+            }
+
+            // Multiple previous-close patterns:
+            val prevClose = listOf(
+                Regex("""class="nseprvclose[^>]*>\s*([0-9,.]+)"""),
+                Regex("""id="nsepclose"[^>]*value="([0-9,.]+)""""),
+                Regex(""""prevClose"\s*:\s*"?([0-9,.]+)"?""")
+            ).firstNotNullOfOrNull { regex ->
+                regex.find(detailBody)?.groupValues?.get(1)?.replace(",", "")?.toDoubleOrNull()
+            }
+
+            if (price != null && price > 0) {
+                Log.d("MarketDataRepo", "SGB Moneycontrol: price=₹$price, prevClose=₹$prevClose for $cleanTicker")
+                AssetPrices(price, prevClose ?: price)
+            } else {
+                // Log first 2000 chars of the detail body to help diagnose DOM changes
+                Log.e("MarketDataRepo",
+                    "SGB Moneycontrol: price not found in detail page ($detailUrlStr). " +
+                    "Detail body preview:\n${detailBody.take(2000)}"
+                )
+                null
+            }
         } catch (e: Exception) {
-            Log.e("MarketDataRepo", "Error fetching SGB from Moneycontrol", e)
+            Log.e("MarketDataRepo", "SGB Moneycontrol fetch exception for $cleanTicker", e)
             null
         }
     }
@@ -172,7 +261,7 @@ class MarketDataRepository {
                     }
             }
         } catch (e: Exception) {
-            e.printStackTrace()
+            Log.e("MarketDataRepo", "Asset search failed for '$query'", e)
             emptyList()
         }
     }

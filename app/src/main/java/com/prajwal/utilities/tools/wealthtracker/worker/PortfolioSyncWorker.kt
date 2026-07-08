@@ -16,7 +16,9 @@ class PortfolioSyncWorker(
         return try {
             val db = WealthDatabase.getDatabase(applicationContext)
             val holdingsDao = db.holdingsDao()
-            val marketDataRepo = MarketDataRepository()
+            // FIX #2: Use the singleton — shares OkHttpClient with the ViewModel,
+            // instead of creating a new thread pool + connection pool on every sync job.
+            val marketDataRepo = MarketDataRepository.getInstance()
 
             val holdings = holdingsDao.getAllHoldings().first()
 

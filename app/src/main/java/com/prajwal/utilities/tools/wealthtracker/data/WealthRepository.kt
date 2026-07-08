@@ -36,5 +36,7 @@ class WealthRepository(
 
     suspend fun deleteHolding(holding: HoldingEntity) = holdingsDao.deleteHolding(holding)
 
-    suspend fun updateHoldingPrice(id: Int, price: Double) = holdingsDao.updatePrice(id, price)
+    suspend fun updateHoldingPrice(id: Int, price: Double, previousClosePrice: Double) =
+        holdingsDao.updatePrice(id, price, previousClosePrice)
+
 }

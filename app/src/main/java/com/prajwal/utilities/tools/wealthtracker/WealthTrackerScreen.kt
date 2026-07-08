@@ -30,6 +30,7 @@ import androidx.compose.material.icons.filled.MoreVert
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import android.widget.Toast
+import android.net.Uri
 
 private enum class WealthTab(val label: String, val icon: ImageVector) {
     PORTFOLIO("Portfolio", Icons.Default.Wallet),
@@ -68,13 +69,40 @@ fun WealthTrackerScreen(
         }
     }
 
+    // FIX #4: Store the picked URI so we can show a confirmation dialog before importing.
+    // Immediately calling importData would silently create duplicates on repeated imports.
+    var pendingImportUri by remember { mutableStateOf<Uri?>(null) }
+
     val importLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) {
-            viewModel.importData(uri, context.contentResolver) { success ->
-                val msg = if (success) "Import successful" else "Import failed"
-                Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
-            }
+            pendingImportUri = uri  // Defer — show confirmation dialog first
         }
+    }
+
+    // Import confirmation dialog
+    pendingImportUri?.let { uri ->
+        AlertDialog(
+            onDismissRequest = { pendingImportUri = null },
+            title = { Text("Import Data") },
+            text = {
+                Text(
+                    "This will add all holdings and snapshots from the backup file to your existing data.\n\n" +
+                    "⚠\uFE0F Importing the same backup more than once will create duplicate entries."
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    pendingImportUri = null
+                    viewModel.importData(uri, context.contentResolver) { success ->
+                        val msg = if (success) "Import successful" else "Import failed"
+                        Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+                    }
+                }) { Text("Import") }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingImportUri = null }) { Text("Cancel") }
+            }
+        )
     }
 
     // Observe lifecycle to reset authentication on background
