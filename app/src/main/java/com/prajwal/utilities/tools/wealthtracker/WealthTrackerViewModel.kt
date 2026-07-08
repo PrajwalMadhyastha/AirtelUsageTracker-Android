@@ -149,6 +149,7 @@ class WealthTrackerViewModel(
         if (_isSyncing.value) return
         viewModelScope.launch {
             _isSyncing.value = true
+            val startTime = System.currentTimeMillis()
             try {
                 // FIX #1: Use the already-subscribed `holdings` StateFlow directly.
                 // The previous code called .stateIn(viewModelScope).value on a cold Flow,
@@ -182,6 +183,10 @@ class WealthTrackerViewModel(
                     }
                 }
             } finally {
+                val elapsedTime = System.currentTimeMillis() - startTime
+                if (elapsedTime < 500) {
+                    kotlinx.coroutines.delay(500 - elapsedTime)
+                }
                 _isSyncing.value = false
             }
         }
