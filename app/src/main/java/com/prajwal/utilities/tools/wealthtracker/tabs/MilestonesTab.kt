@@ -84,7 +84,7 @@ fun MilestonesTab(
                     Column {
                         Text("Current Value", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         Text(
-                            MilestoneCalculator.formatInr(currentPortfolioValue),
+                            MilestoneCalculator.formatInrExact(currentPortfolioValue),
                             style = MaterialTheme.typography.headlineSmall,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.primary
@@ -94,7 +94,7 @@ fun MilestonesTab(
                         Column(horizontalAlignment = Alignment.End) {
                             Text("Total Invested", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             Text(
-                                MilestoneCalculator.formatInr(totalInvested),
+                                MilestoneCalculator.formatInrExact(totalInvested),
                                 style = MaterialTheme.typography.headlineSmall,
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.onPrimaryContainer

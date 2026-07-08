@@ -2,9 +2,14 @@ package com.prajwal.utilities.tools.wealthtracker.data
 
 import com.prajwal.utilities.tools.wealthtracker.data.db.AssetSnapshotEntity
 import com.prajwal.utilities.tools.wealthtracker.data.db.WealthDao
+import com.prajwal.utilities.tools.wealthtracker.data.db.HoldingEntity
+import com.prajwal.utilities.tools.wealthtracker.data.db.HoldingsDao
 import kotlinx.coroutines.flow.Flow
 
-class WealthRepository(private val dao: WealthDao) {
+class WealthRepository(
+    private val dao: WealthDao,
+    private val holdingsDao: HoldingsDao
+) {
 
     /** All snapshots newest-first — used for the history list and diversification (latest). */
     fun getAllSnapshots(): Flow<List<AssetSnapshotEntity>> = dao.getAllSnapshots()
@@ -20,4 +25,16 @@ class WealthRepository(private val dao: WealthDao) {
 
     /** Delete a snapshot (accidental entry removal). */
     suspend fun deleteSnapshot(snapshot: AssetSnapshotEntity) = dao.deleteSnapshot(snapshot)
+
+    // --- Holdings ---
+
+    fun getAllHoldings(): Flow<List<HoldingEntity>> = holdingsDao.getAllHoldings()
+
+    suspend fun insertHolding(holding: HoldingEntity) = holdingsDao.insertHolding(holding)
+
+    suspend fun updateHolding(holding: HoldingEntity) = holdingsDao.updateHolding(holding)
+
+    suspend fun deleteHolding(holding: HoldingEntity) = holdingsDao.deleteHolding(holding)
+
+    suspend fun updateHoldingPrice(id: Int, price: Double) = holdingsDao.updatePrice(id, price)
 }

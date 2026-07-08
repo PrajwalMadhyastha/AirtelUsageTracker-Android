@@ -6,18 +6,56 @@ import com.prajwal.utilities.tools.wealthtracker.data.CalculatorSettings
 import com.prajwal.utilities.tools.wealthtracker.data.WealthPreferences
 import com.prajwal.utilities.tools.wealthtracker.data.WealthRepository
 import com.prajwal.utilities.tools.wealthtracker.data.db.AssetSnapshotEntity
+import com.prajwal.utilities.tools.wealthtracker.data.db.HoldingEntity
+import com.prajwal.utilities.tools.wealthtracker.data.network.AssetSearchResult
+import com.prajwal.utilities.tools.wealthtracker.data.network.MarketDataRepository
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 class WealthTrackerViewModel(
     private val repository: WealthRepository,
+    private val marketDataRepository: MarketDataRepository,
     private val prefs: WealthPreferences
 ) : ViewModel() {
+
+    val holdings: StateFlow<List<HoldingEntity>> = repository.getAllHoldings()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    private val _isSyncing = MutableStateFlow(false)
+    val isSyncing: StateFlow<Boolean> = _isSyncing.asStateFlow()
+
+    private val _searchQuery = MutableStateFlow("")
+    private val _searchIsMf = MutableStateFlow(false)
+
+    @OptIn(ExperimentalCoroutinesApi::class, FlowPreview::class)
+    val searchResults: StateFlow<List<AssetSearchResult>> = _searchQuery
+        .debounce(500)
+        .flatMapLatest { query ->
+            if (query.length < 2) {
+                flowOf(emptyList())
+            } else {
+                flow {
+                    emit(marketDataRepository.searchAsset(query, _searchIsMf.value))
+                }
+            }
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    fun updateSearchQuery(query: String, isMf: Boolean) {
+        _searchIsMf.value = isMf
+        _searchQuery.value = query
+    }
 
     /** All snapshots newest-first (for history list + latest diversification). */
     val snapshots: StateFlow<List<AssetSnapshotEntity>> = repository.getAllSnapshots()
@@ -41,6 +79,22 @@ class WealthTrackerViewModel(
         CalculatorSettings()
     )
 
+    val isBiometricEnabled: StateFlow<Boolean> = prefs.isBiometricEnabled
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+
+    private val _isAuthenticated = MutableStateFlow(false)
+    val isAuthenticated: StateFlow<Boolean> = _isAuthenticated.asStateFlow()
+
+    fun setAuthenticated(auth: Boolean) {
+        _isAuthenticated.value = auth
+    }
+
+    fun toggleBiometric() {
+        viewModelScope.launch {
+            prefs.updateBiometricEnabled(!isBiometricEnabled.value)
+        }
+    }
+
     /** Tracks if the "pre-fill from latest snapshot" operation is loading. */
     private val _prefillSnapshot = MutableStateFlow<AssetSnapshotEntity?>(null)
     val prefillSnapshot: StateFlow<AssetSnapshotEntity?> = _prefillSnapshot.asStateFlow()
@@ -56,6 +110,56 @@ class WealthTrackerViewModel(
     fun deleteSnapshot(snapshot: AssetSnapshotEntity) {
         viewModelScope.launch {
             repository.deleteSnapshot(snapshot)
+        }
+    }
+
+    /** Holdings management */
+    fun addHolding(holding: HoldingEntity) {
+        viewModelScope.launch {
+            repository.insertHolding(holding)
+            syncPricesNow()
+        }
+    }
+
+    fun updateHolding(holding: HoldingEntity) {
+        viewModelScope.launch {
+            repository.updateHolding(holding)
+            syncPricesNow()
+        }
+    }
+
+    fun deleteHolding(holding: HoldingEntity) {
+        viewModelScope.launch {
+            repository.deleteHolding(holding)
+        }
+    }
+
+    fun syncPricesNow() {
+        if (_isSyncing.value) return
+        viewModelScope.launch {
+            _isSyncing.value = true
+            try {
+                val currentHoldings = repository.getAllHoldings().stateIn(viewModelScope).value.ifEmpty { holdings.value }
+                for (holding in currentHoldings) {
+                    val prices = if (holding.instrumentType == "MF") {
+                        marketDataRepository.fetchMfNav(holding.identifier)
+                    } else {
+                        marketDataRepository.fetchStockPrice(holding.identifier, holding.exchange)
+                    }
+
+                    if (prices != null) {
+                        repository.updateHolding(
+                            holding.copy(
+                                latestPrice = prices.latestPrice,
+                                previousClosePrice = prices.previousClosePrice,
+                                lastUpdatedAt = System.currentTimeMillis()
+                            )
+                        )
+                    }
+                }
+            } finally {
+                _isSyncing.value = false
+            }
         }
     }
 

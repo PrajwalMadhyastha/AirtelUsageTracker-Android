@@ -4,15 +4,17 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import com.prajwal.utilities.tools.wealthtracker.data.WealthPreferences
 import com.prajwal.utilities.tools.wealthtracker.data.WealthRepository
+import com.prajwal.utilities.tools.wealthtracker.data.network.MarketDataRepository
 
 class WealthTrackerViewModelFactory(
     private val repository: WealthRepository,
+    private val marketDataRepository: MarketDataRepository,
     private val prefs: WealthPreferences
 ) : ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         if (modelClass.isAssignableFrom(WealthTrackerViewModel::class.java)) {
             @Suppress("UNCHECKED_CAST")
-            return WealthTrackerViewModel(repository, prefs) as T
+            return WealthTrackerViewModel(repository, marketDataRepository, prefs) as T
         }
         throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
     }

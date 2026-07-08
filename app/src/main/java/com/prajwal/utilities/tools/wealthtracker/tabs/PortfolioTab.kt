@@ -10,7 +10,6 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
@@ -25,10 +24,10 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.prajwal.utilities.tools.wealthtracker.data.MilestoneCalculator
 import com.prajwal.utilities.tools.wealthtracker.data.db.AssetSnapshotEntity
+import com.prajwal.utilities.tools.wealthtracker.data.db.HoldingEntity
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
@@ -36,81 +35,53 @@ import java.util.Date
 import java.util.Locale
 import kotlin.math.abs
 
+import androidx.compose.material3.pulltorefresh.PullToRefreshContainer
+import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PortfolioTab(
     snapshots: List<AssetSnapshotEntity>,
-    prefill: AssetSnapshotEntity?,
+    holdings: List<HoldingEntity>,
+    isSyncing: Boolean,
+    onSyncNow: () -> Unit,
     onSave: (AssetSnapshotEntity) -> Unit,
     onDelete: (AssetSnapshotEntity) -> Unit
 ) {
-    var equityInvested by remember { mutableStateOf("") }
-    var equityCurrent by remember { mutableStateOf("") }
-    var goldInvested by remember { mutableStateOf("") }
-    var goldCurrent by remember { mutableStateOf("") }
-    var debtInvested by remember { mutableStateOf("") }
-    var debtCurrent by remember { mutableStateOf("") }
-    var silverInvested by remember { mutableStateOf("") }
-    var silverCurrent by remember { mutableStateOf("") }
-    var reitsInvested by remember { mutableStateOf("") }
-    var reitsCurrent by remember { mutableStateOf("") }
     var snapshotToDelete by remember { mutableStateOf<AssetSnapshotEntity?>(null) }
     var justSaved by remember { mutableStateOf(false) }
     val coroutineScope = rememberCoroutineScope()
 
-    // Pre-fill from latest snapshot when it arrives
-    LaunchedEffect(prefill) {
-        prefill?.let { s ->
-            fun fmt(v: Double) = if (v > 0) v.toLong().toString() else ""
-            equityInvested = fmt(s.equityInvested)
-            equityCurrent = fmt(s.equityCurrent)
-            goldInvested = fmt(s.goldInvested)
-            goldCurrent = fmt(s.goldCurrent)
-            debtInvested = fmt(s.debtInvested)
-            debtCurrent = fmt(s.debtCurrent)
-            silverInvested = fmt(s.silverInvested)
-            silverCurrent = fmt(s.silverCurrent)
-            reitsInvested = fmt(s.reitsInvested)
-            reitsCurrent = fmt(s.reitsCurrent)
-        }
+    // Calculate live totals from holdings
+    val eqHoldings = holdings.filter { it.assetClass == "Equity" }
+    val gdHoldings = holdings.filter { it.assetClass == "Gold" }
+    val dbHoldings = holdings.filter { it.assetClass == "Debt" }
+    val slHoldings = holdings.filter { it.assetClass == "Silver" }
+    val rtHoldings = holdings.filter { it.assetClass == "REITs" }
+
+    fun calcInv(list: List<HoldingEntity>) = list.sumOf { it.investedAmount }
+    fun calcCur(list: List<HoldingEntity>) = list.sumOf { 
+        if (it.latestPrice > 0) it.unitsHeld * it.latestPrice else it.investedAmount 
     }
 
-    // Disable Save if form values match the pre-filled (latest) snapshot
-    val hasChanged = remember(
-        equityInvested, equityCurrent, goldInvested, goldCurrent,
-        debtInvested, debtCurrent, silverInvested, silverCurrent,
-        reitsInvested, reitsCurrent, prefill
-    ) {
-        fun toD(s: String) = s.toDoubleOrNull() ?: 0.0
-        val p = prefill
-        when {
-            p == null -> listOf(
-                equityInvested, equityCurrent, goldInvested, goldCurrent,
-                debtInvested, debtCurrent, silverInvested, silverCurrent,
-                reitsInvested, reitsCurrent
-            ).any { toD(it) > 0 }
-            else ->
-                toD(equityInvested) != p.equityInvested ||
-                toD(equityCurrent) != p.equityCurrent ||
-                toD(goldInvested) != p.goldInvested ||
-                toD(goldCurrent) != p.goldCurrent ||
-                toD(debtInvested) != p.debtInvested ||
-                toD(debtCurrent) != p.debtCurrent ||
-                toD(silverInvested) != p.silverInvested ||
-                toD(silverCurrent) != p.silverCurrent ||
-                toD(reitsInvested) != p.reitsInvested ||
-                toD(reitsCurrent) != p.reitsCurrent
-        }
-    }
+    val eqInv = calcInv(eqHoldings); val eqCur = calcCur(eqHoldings)
+    val gdInv = calcInv(gdHoldings); val gdCur = calcCur(gdHoldings)
+    val dbInv = calcInv(dbHoldings); val dbCur = calcCur(dbHoldings)
+    val slInv = calcInv(slHoldings); val slCur = calcCur(slHoldings)
+    val rtInv = calcInv(rtHoldings); val rtCur = calcCur(rtHoldings)
 
-    // Live totals (computed outside LazyColumn so they react immediately)
-    val totalInv = listOf(equityInvested, goldInvested, debtInvested, silverInvested, reitsInvested)
-        .sumOf { it.toDoubleOrNull() ?: 0.0 }
-    val totalCur = listOf(equityCurrent, goldCurrent, debtCurrent, silverCurrent, reitsCurrent)
-        .sumOf { it.toDoubleOrNull() ?: 0.0 }
+    val totalInv = eqInv + gdInv + dbInv + slInv + rtInv
+    val totalCur = eqCur + gdCur + dbCur + slCur + rtCur
     val gain = totalCur - totalInv
     val gainPositive = gain >= 0
 
-    // Delete confirmation dialog
+    val dailyGain = holdings.sumOf { if (it.previousClosePrice > 0) it.unitsHeld * (it.latestPrice - it.previousClosePrice) else 0.0 }
+    val dailyGainPositive = dailyGain >= 0
+
+    // Only enable save if we have some investment and haven't just saved
+    val canSave = totalInv > 0 && !justSaved
+
     snapshotToDelete?.let { snapshot ->
         AlertDialog(
             onDismissRequest = { snapshotToDelete = null },
@@ -131,12 +102,29 @@ fun PortfolioTab(
         )
     }
 
-    LazyColumn(
-        modifier = Modifier.fillMaxSize(),
+    val pullToRefreshState = rememberPullToRefreshState()
+
+    if (pullToRefreshState.isRefreshing) {
+        LaunchedEffect(true) {
+            onSyncNow()
+        }
+    }
+
+    LaunchedEffect(isSyncing) {
+        if (isSyncing) {
+            pullToRefreshState.startRefresh()
+        } else {
+            pullToRefreshState.endRefresh()
+        }
+    }
+
+    Box(modifier = Modifier.fillMaxSize().nestedScroll(pullToRefreshState.nestedScrollConnection)) {
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        // ── Live summary card — always visible at the top ─────────────
+        // ── Live summary card ─────────────
         item {
             Card(
                 modifier = Modifier.fillMaxWidth(),
@@ -162,7 +150,7 @@ fun PortfolioTab(
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         Text(
-                            MilestoneCalculator.formatInr(totalInv),
+                            MilestoneCalculator.formatInrExact(totalInv),
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold
                         )
@@ -174,7 +162,7 @@ fun PortfolioTab(
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         Text(
-                            "${if (gainPositive) "+" else "-"}${MilestoneCalculator.formatInr(abs(gain))}",
+                            "${if (gainPositive) "+" else "-"}${MilestoneCalculator.formatInrExact(abs(gain))}",
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
                             color = if (gainPositive) MaterialTheme.colorScheme.primary
@@ -192,16 +180,51 @@ fun PortfolioTab(
                     }
                     Column(horizontalAlignment = Alignment.End) {
                         Text(
-                            "Current Value",
+                            "Live Value",
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         Text(
-                            MilestoneCalculator.formatInr(totalCur),
+                            MilestoneCalculator.formatInrExact(totalCur),
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold
                         )
                     }
+                }
+            }
+        }
+
+        // ── Daily P/L card ─────────────
+        item {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(
+                    containerColor = if (dailyGainPositive)
+                        MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
+                    else
+                        MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.5f)
+                ),
+                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp, vertical = 12.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        "Today's P/L",
+                        style = MaterialTheme.typography.titleSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        "${if (dailyGainPositive) "+" else "-"}${MilestoneCalculator.formatInrExact(abs(dailyGain), showDecimals = true)}",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = if (dailyGainPositive) MaterialTheme.colorScheme.primary
+                        else MaterialTheme.colorScheme.error
+                    )
                 }
             }
         }
@@ -224,13 +247,13 @@ fun PortfolioTab(
             ) {
                 Column {
                     Text(
-                        "Update Portfolio",
+                        "Portfolio Overview",
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold,
                         color = Color.White
                     )
                     Text(
-                        "Enter invested & current values. Each save creates a timestamped snapshot.",
+                        "Your portfolio is automatically calculated from your Holdings.",
                         style = MaterialTheme.typography.bodySmall,
                         color = Color.White.copy(alpha = 0.85f),
                         modifier = Modifier.padding(top = 4.dp)
@@ -239,12 +262,12 @@ fun PortfolioTab(
             }
         }
 
-        // ── Asset input cards ─────────────────────────────────────────
-        item { AssetInputCard("Equity", "Mutual Funds + Stocks", equityInvested, equityCurrent, { equityInvested = it }, { equityCurrent = it }) }
-        item { AssetInputCard("Gold", "Physical + Sovereign Bonds + ETFs", goldInvested, goldCurrent, { goldInvested = it }, { goldCurrent = it }) }
-        item { AssetInputCard("Debt", "FD + Bonds + Liquid Funds", debtInvested, debtCurrent, { debtInvested = it }, { debtCurrent = it }) }
-        item { AssetInputCard("Silver", "Physical + ETFs", silverInvested, silverCurrent, { silverInvested = it }, { silverCurrent = it }) }
-        item { AssetInputCard("REITs", "Real Estate Investment Trusts", reitsInvested, reitsCurrent, { reitsInvested = it }, { reitsCurrent = it }) }
+        // ── Asset summary cards ───────────────────────────────────────
+        if (eqInv > 0 || eqCur > 0) item { AssetSummaryCard("Equity", eqInv, eqCur) }
+        if (gdInv > 0 || gdCur > 0) item { AssetSummaryCard("Gold", gdInv, gdCur) }
+        if (dbInv > 0 || dbCur > 0) item { AssetSummaryCard("Debt", dbInv, dbCur) }
+        if (slInv > 0 || slCur > 0) item { AssetSummaryCard("Silver", slInv, slCur) }
+        if (rtInv > 0 || rtCur > 0) item { AssetSummaryCard("REITs", rtInv, rtCur) }
 
         // ── Save button ───────────────────────────────────────────────
         item {
@@ -252,16 +275,11 @@ fun PortfolioTab(
                 onClick = {
                     onSave(
                         AssetSnapshotEntity(
-                            equityInvested = equityInvested.toDoubleOrNull() ?: 0.0,
-                            equityCurrent = equityCurrent.toDoubleOrNull() ?: 0.0,
-                            goldInvested = goldInvested.toDoubleOrNull() ?: 0.0,
-                            goldCurrent = goldCurrent.toDoubleOrNull() ?: 0.0,
-                            debtInvested = debtInvested.toDoubleOrNull() ?: 0.0,
-                            debtCurrent = debtCurrent.toDoubleOrNull() ?: 0.0,
-                            silverInvested = silverInvested.toDoubleOrNull() ?: 0.0,
-                            silverCurrent = silverCurrent.toDoubleOrNull() ?: 0.0,
-                            reitsInvested = reitsInvested.toDoubleOrNull() ?: 0.0,
-                            reitsCurrent = reitsCurrent.toDoubleOrNull() ?: 0.0
+                            equityInvested = eqInv, equityCurrent = eqCur,
+                            goldInvested = gdInv, goldCurrent = gdCur,
+                            debtInvested = dbInv, debtCurrent = dbCur,
+                            silverInvested = slInv, silverCurrent = slCur,
+                            reitsInvested = rtInv, reitsCurrent = rtCur
                         )
                     )
                     justSaved = true
@@ -270,7 +288,7 @@ fun PortfolioTab(
                         justSaved = false
                     }
                 },
-                enabled = hasChanged && !justSaved,
+                enabled = canSave,
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(52.dp),
@@ -291,7 +309,7 @@ fun PortfolioTab(
                         )
                         Spacer(Modifier.width(8.dp))
                         Text(
-                            text = if (saved) "Snapshot Saved!" else "Save Snapshot",
+                            text = if (saved) "Snapshot Saved!" else "Save Live Snapshot",
                             style = MaterialTheme.typography.titleSmall
                         )
                     }
@@ -317,48 +335,38 @@ fun PortfolioTab(
             }
         }
     }
+
+    if (pullToRefreshState.progress > 0f || pullToRefreshState.isRefreshing) {
+        PullToRefreshContainer(
+            state = pullToRefreshState,
+            modifier = Modifier.align(Alignment.TopCenter)
+        )
+    }
+}
 }
 
 @Composable
-private fun AssetInputCard(
+private fun AssetSummaryCard(
     label: String,
-    subtitle: String,
-    invested: String,
-    current: String,
-    onInvestedChange: (String) -> Unit,
-    onCurrentChange: (String) -> Unit
+    invested: Double,
+    current: Double
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
-            Text(label, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
-            Text(
-                subtitle,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+            Text(label, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(12.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                OutlinedTextField(
-                    value = invested,
-                    onValueChange = onInvestedChange,
-                    label = { Text("Invested (₹)") },
-                    modifier = Modifier.weight(1f),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    singleLine = true,
-                    prefix = { Text("₹") }
-                )
-                OutlinedTextField(
-                    value = current,
-                    onValueChange = onCurrentChange,
-                    label = { Text("Current (₹)") },
-                    modifier = Modifier.weight(1f),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    singleLine = true,
-                    prefix = { Text("₹") }
-                )
+            Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
+                Column {
+                    Text("Invested", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(MilestoneCalculator.formatInrExact(invested), style = MaterialTheme.typography.bodyLarge)
+                }
+                Column(horizontalAlignment = Alignment.End) {
+                    Text("Live Value", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(MilestoneCalculator.formatInrExact(current), style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Bold)
+                }
             }
         }
     }
@@ -393,12 +401,12 @@ private fun SnapshotHistoryCard(
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Text(
-                        MilestoneCalculator.formatInr(snapshot.totalCurrent),
+                        MilestoneCalculator.formatInrExact(snapshot.totalCurrent),
                         style = MaterialTheme.typography.titleSmall,
                         fontWeight = FontWeight.Bold
                     )
                     Text(
-                        "${if (gainPositive) "+" else "-"}${MilestoneCalculator.formatInr(abs(gain))} (${String.format("%.1f", snapshot.totalGainLossPct)}%)",
+                        "${if (gainPositive) "+" else "-"}${MilestoneCalculator.formatInrExact(abs(gain))} (${String.format("%.1f", snapshot.totalGainLossPct)}%)",
                         style = MaterialTheme.typography.bodySmall,
                         color = if (gainPositive) MaterialTheme.colorScheme.primary
                         else MaterialTheme.colorScheme.error
@@ -441,7 +449,7 @@ private fun SnapshotHistoryCard(
                         ) {
                             Text(name, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Medium)
                             Text(
-                                "${MilestoneCalculator.formatInr(inv)} → ${MilestoneCalculator.formatInr(cur)}",
+                                "${MilestoneCalculator.formatInrExact(inv)} → ${MilestoneCalculator.formatInrExact(cur)}",
                                 style = MaterialTheme.typography.bodySmall
                             )
                         }

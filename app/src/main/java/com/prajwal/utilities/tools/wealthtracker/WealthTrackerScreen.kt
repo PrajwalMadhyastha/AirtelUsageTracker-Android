@@ -11,14 +11,27 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.LockOpen
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.platform.LocalContext
+import androidx.fragment.app.FragmentActivity
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.compose.ui.platform.LocalLifecycleOwner
+import kotlinx.coroutines.launch
+import com.prajwal.utilities.tools.wealthtracker.tabs.HoldingsTab
 import com.prajwal.utilities.tools.wealthtracker.tabs.MilestonesTab
 import com.prajwal.utilities.tools.wealthtracker.tabs.PortfolioTab
 import com.prajwal.utilities.tools.wealthtracker.tabs.ReportsTab
+import androidx.compose.material.icons.filled.List
 
 private enum class WealthTab(val label: String, val icon: ImageVector) {
     PORTFOLIO("Portfolio", Icons.Default.Wallet),
-    REPORTS("Reports", Icons.Default.BarChart),
-    MILESTONES("Milestones", Icons.Default.EmojiEvents)
+    HOLDINGS("Holdings", Icons.Default.List),
+    MILESTONES("Milestones", Icons.Default.EmojiEvents),
+    REPORTS("Reports", Icons.Default.BarChart)
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -30,11 +43,92 @@ fun WealthTrackerScreen(
     val snapshots by viewModel.snapshots.collectAsState()
     val snapshotsChronological by viewModel.snapshotsChronological.collectAsState()
     val calculatorSettings by viewModel.calculatorSettings.collectAsState()
-    val prefillSnapshot by viewModel.prefillSnapshot.collectAsState()
+    val holdings by viewModel.holdings.collectAsState()
+    val isSyncing by viewModel.isSyncing.collectAsState()
+    val searchResults by viewModel.searchResults.collectAsState()
     var selectedTab by remember { mutableStateOf(WealthTab.PORTFOLIO) }
 
-    // Load latest snapshot for pre-fill on first composition
-    LaunchedEffect(Unit) { viewModel.loadPrefill() }
+    val isBiometricEnabled by viewModel.isBiometricEnabled.collectAsState()
+    val isAuthenticated by viewModel.isAuthenticated.collectAsState()
+
+    val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
+    val coroutineScope = rememberCoroutineScope()
+
+    // Observe lifecycle to reset authentication on background
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_STOP) {
+                viewModel.setAuthenticated(false)
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
+    }
+
+    LaunchedEffect(isBiometricEnabled, isAuthenticated) {
+        if (isBiometricEnabled && !isAuthenticated) {
+            val activity = context as? FragmentActivity
+            if (activity != null && BiometricHelper.isBiometricAvailable(activity)) {
+                val success = BiometricHelper.authenticate(
+                    activity = activity,
+                    title = "Unlock Wealth Tracker",
+                    subtitle = "Verify your identity to access your portfolio"
+                )
+                if (success) {
+                    viewModel.setAuthenticated(true)
+                }
+            }
+        }
+    }
+
+    if (isBiometricEnabled && !isAuthenticated) {
+        Scaffold(
+            topBar = {
+                TopAppBar(
+                    title = { Text("Wealth Tracker", fontWeight = FontWeight.Bold) },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = MaterialTheme.colorScheme.primaryContainer,
+                        titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                    ),
+                    navigationIcon = {
+                        IconButton(onClick = onNavigateBack) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        }
+                    }
+                )
+            }
+        ) { padding ->
+            Box(modifier = Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Icon(Icons.Default.Lock, contentDescription = "Locked", modifier = Modifier.size(64.dp), tint = MaterialTheme.colorScheme.primary)
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text("Wealth Tracker is locked", style = MaterialTheme.typography.titleLarge)
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Button(onClick = {
+                        val activity = context as? FragmentActivity
+                        if (activity != null) {
+                            coroutineScope.launch {
+                                val success = BiometricHelper.authenticate(
+                                    activity = activity,
+                                    title = "Unlock Wealth Tracker",
+                                    subtitle = "Verify your identity to access your portfolio"
+                                )
+                                if (success) {
+                                    viewModel.setAuthenticated(true)
+                                }
+                            }
+                        }
+                    }) {
+                        Text("Unlock")
+                    }
+                }
+            }
+        }
+        return
+    }
 
     Scaffold(
         topBar = {
@@ -57,6 +151,16 @@ fun WealthTrackerScreen(
                     IconButton(onClick = onNavigateBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
+                },
+                actions = {
+                    if (BiometricHelper.isBiometricAvailable(context)) {
+                        IconButton(onClick = { viewModel.toggleBiometric() }) {
+                            Icon(
+                                imageVector = if (isBiometricEnabled) Icons.Default.Lock else Icons.Default.LockOpen,
+                                contentDescription = "Toggle Biometric Lock"
+                            )
+                        }
+                    }
                 }
             )
         }
@@ -67,8 +171,9 @@ fun WealthTrackerScreen(
                 .padding(paddingValues)
         ) {
             // Tab row
-            TabRow(
+            ScrollableTabRow(
                 selectedTabIndex = selectedTab.ordinal,
+                edgePadding = 16.dp,
                 containerColor = MaterialTheme.colorScheme.surface,
                 contentColor = MaterialTheme.colorScheme.primary
             ) {
@@ -76,7 +181,7 @@ fun WealthTrackerScreen(
                     Tab(
                         selected = selectedTab == tab,
                         onClick = { selectedTab = tab },
-                        text = { Text(tab.label, style = MaterialTheme.typography.labelMedium) },
+                        text = { Text(tab.label, fontWeight = if (selectedTab == tab) FontWeight.Bold else FontWeight.Normal, style = MaterialTheme.typography.labelMedium) },
                         icon = { Icon(tab.icon, contentDescription = tab.label, modifier = Modifier) }
                     )
                 }
@@ -84,12 +189,24 @@ fun WealthTrackerScreen(
 
             // Tab content
             when (selectedTab) {
+                WealthTab.HOLDINGS -> HoldingsTab(
+                    holdings = holdings,
+                    isSyncing = isSyncing,
+                    searchResults = searchResults,
+                    onSearchQueryChanged = viewModel::updateSearchQuery,
+                    onAddHolding = viewModel::addHolding,
+                    onUpdateHolding = viewModel::updateHolding,
+                    onDeleteHolding = viewModel::deleteHolding,
+                    onSyncNow = viewModel::syncPricesNow
+                )
+
                 WealthTab.PORTFOLIO -> PortfolioTab(
                     snapshots = snapshots,
-                    prefill = prefillSnapshot,
+                    holdings = holdings,
+                    isSyncing = isSyncing,
+                    onSyncNow = viewModel::syncPricesNow,
                     onSave = { snapshot ->
                         viewModel.saveSnapshot(snapshot)
-                        viewModel.loadPrefill()
                     },
                     onDelete = viewModel::deleteSnapshot
                 )

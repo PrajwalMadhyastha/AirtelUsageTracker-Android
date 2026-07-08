@@ -3,6 +3,7 @@ package com.prajwal.utilities.tools.wealthtracker.data
 import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.doublePreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.preferencesDataStore
@@ -21,6 +22,7 @@ class WealthPreferences(private val context: Context) {
         val MONTHLY_INVESTMENT = doublePreferencesKey("monthly_investment")
         val ANNUAL_STEPUP_PERCENT = doublePreferencesKey("annual_stepup_percent")
         val EXPECTED_RETURN_PERCENT = doublePreferencesKey("expected_return_percent")
+        val IS_BIOMETRIC_ENABLED = booleanPreferencesKey("is_biometric_enabled")
 
         // Defaults
         const val DEFAULT_MONTHLY_INVESTMENT = 10000.0   // ₹10,000/month
@@ -37,6 +39,9 @@ class WealthPreferences(private val context: Context) {
     val expectedReturnPercent: Flow<Double> = context.wealthDataStore.data
         .map { it[EXPECTED_RETURN_PERCENT] ?: DEFAULT_EXPECTED_RETURN_PERCENT }
 
+    val isBiometricEnabled: Flow<Boolean> = context.wealthDataStore.data
+        .map { it[IS_BIOMETRIC_ENABLED] ?: false }
+
     suspend fun updateMonthlyInvestment(amount: Double) {
         context.wealthDataStore.edit { it[MONTHLY_INVESTMENT] = amount }
     }
@@ -47,5 +52,9 @@ class WealthPreferences(private val context: Context) {
 
     suspend fun updateExpectedReturn(percent: Double) {
         context.wealthDataStore.edit { it[EXPECTED_RETURN_PERCENT] = percent }
+    }
+
+    suspend fun updateBiometricEnabled(enabled: Boolean) {
+        context.wealthDataStore.edit { it[IS_BIOMETRIC_ENABLED] = enabled }
     }
 }

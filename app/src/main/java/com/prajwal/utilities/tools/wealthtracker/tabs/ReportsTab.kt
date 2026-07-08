@@ -142,7 +142,7 @@ fun ReportsTab(
                                                 fontWeight = FontWeight.Medium
                                             )
                                             Text(
-                                                MilestoneCalculator.formatInr(value),
+                                                MilestoneCalculator.formatInrExact(value),
                                                 style = MaterialTheme.typography.bodySmall,
                                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                                             )
@@ -174,7 +174,7 @@ fun ReportsTab(
                             }
                             Column(horizontalAlignment = Alignment.End) {
                                 Text(
-                                    "${if (asset.gainLoss >= 0) "+" else ""}${MilestoneCalculator.formatInr(asset.gainLoss)}",
+                                    "${if (asset.gainLoss >= 0) "+" else ""}${MilestoneCalculator.formatInrExact(asset.gainLoss)}",
                                     style = MaterialTheme.typography.bodySmall,
                                     fontWeight = FontWeight.SemiBold,
                                     color = if (asset.gainLoss >= 0) Color(0xFF10B981) else MaterialTheme.colorScheme.error

@@ -110,11 +110,20 @@ dependencies {
     implementation("androidx.room:room-ktx:$room_version")
     ksp("androidx.room:room-compiler:$room_version")
 
+    // Biometric
+    implementation("androidx.biometric:biometric:1.1.0")
+
     // Vico Charts - Compose-first charting library
     implementation("com.patrykandpatrick.vico:compose:1.15.0")
     implementation("com.patrykandpatrick.vico:compose-m3:1.15.0")
 
     // PDF generation for reports
     implementation("com.itextpdf:itext7-core:7.2.5")
+
+    // Retrofit & Moshi
+    implementation("com.squareup.retrofit2:retrofit:2.9.0")
+    implementation("com.squareup.retrofit2:converter-moshi:2.9.0")
+    implementation("com.squareup.moshi:moshi-kotlin:1.15.0")
+    ksp("com.squareup.moshi:moshi-kotlin-codegen:1.15.0")
 }
 

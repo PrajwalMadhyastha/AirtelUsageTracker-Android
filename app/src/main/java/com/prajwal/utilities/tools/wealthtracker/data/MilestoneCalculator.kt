@@ -94,7 +94,6 @@ object MilestoneCalculator {
         }
     }
 
-    /** Format a large number into Indian currency notation (e.g. ₹1.5 Cr, ₹45 L) */
     fun formatInr(amount: Double): String {
         val isNegative = amount < 0
         val absAmount = kotlin.math.abs(amount)
@@ -104,5 +103,13 @@ object MilestoneCalculator {
             else -> "₹%.0f".format(absAmount)
         }
         return if (isNegative) "-$formatted" else formatted
+    }
+
+    /** Format a number with exact Indian commas (e.g. ₹1,23,456) and optional decimals */
+    fun formatInrExact(amount: Double, showDecimals: Boolean = false): String {
+        val format = java.text.NumberFormat.getCurrencyInstance(java.util.Locale("en", "IN"))
+        format.maximumFractionDigits = if (showDecimals) 2 else 0
+        format.minimumFractionDigits = if (showDecimals) 2 else 0
+        return format.format(amount)
     }
 }

@@ -200,14 +200,17 @@ fun AppNavHost(
         // ── Wealth Tracker ────────────────────────────────────────────
         composable(Screen.WealthTracker.route) {
             val context = LocalContext.current
+            val db = remember { com.prajwal.utilities.tools.wealthtracker.data.db.WealthDatabase.getDatabase(context) }
             val repository = remember {
-                WealthRepository(
-                    WealthDatabase.getDatabase(context).wealthDao()
+                com.prajwal.utilities.tools.wealthtracker.data.WealthRepository(
+                    db.wealthDao(),
+                    db.holdingsDao()
                 )
             }
-            val prefs = remember { WealthPreferences(context) }
-            val viewModel: WealthTrackerViewModel = viewModel(
-                factory = WealthTrackerViewModelFactory(repository, prefs)
+            val marketRepo = remember { com.prajwal.utilities.tools.wealthtracker.data.network.MarketDataRepository() }
+            val prefs = remember { com.prajwal.utilities.tools.wealthtracker.data.WealthPreferences(context) }
+            val viewModel: com.prajwal.utilities.tools.wealthtracker.WealthTrackerViewModel = viewModel(
+                factory = com.prajwal.utilities.tools.wealthtracker.WealthTrackerViewModelFactory(repository, marketRepo, prefs)
             )
             WealthTrackerScreen(
                 viewModel = viewModel,
