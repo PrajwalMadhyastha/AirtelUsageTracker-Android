@@ -5,6 +5,7 @@ import androidx.compose.material.icons.filled.Fitbit
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.SportsBaseball
 import androidx.compose.material.icons.filled.SportsScore
+import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material.icons.filled.Wifi
 import androidx.compose.ui.graphics.vector.ImageVector
 
@@ -52,6 +53,13 @@ object ToolRegistry {
             description = "Log your gym sessions and exercises",
             icon = Icons.Default.Fitbit,
             route = Screen.WorkoutTracker.route
+        ),
+        ToolDefinition(
+            id = "wealth_tracker",
+            name = "Wealth Tracker",
+            description = "Track portfolio, diversification & milestones",
+            icon = Icons.AutoMirrored.Filled.TrendingUp,
+            route = Screen.WealthTracker.route
         )
     )
 }
