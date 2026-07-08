@@ -224,7 +224,9 @@ fun WealthTrackerScreen(
                             text = { Text("Export Data") },
                             onClick = {
                                 showMenu = false
-                                exportLauncher.launch("wealth_tracker_backup.json")
+                                val sdf = java.text.SimpleDateFormat("yyyy-MM-dd_HH-mm-ss", java.util.Locale.getDefault())
+                                val fileName = "wealth_tracker_backup_${sdf.format(java.util.Date())}.json"
+                                exportLauncher.launch(fileName)
                             }
                         )
                         DropdownMenuItem(
