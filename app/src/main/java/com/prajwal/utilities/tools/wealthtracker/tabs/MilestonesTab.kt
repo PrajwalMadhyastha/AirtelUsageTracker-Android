@@ -40,6 +40,7 @@ fun MilestonesTab(
     onReturnChange: (Double) -> Unit
 ) {
     val currentPortfolioValue = latestSnapshot?.totalCurrent ?: 0.0
+    val totalInvested = latestSnapshot?.totalInvested ?: 0.0
 
     var monthlyText by remember(settings.monthlyInvestment) {
         mutableStateOf(settings.monthlyInvestment.toLong().toString())
@@ -79,7 +80,7 @@ fun MilestonesTab(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Column {
-                        Text("Current Portfolio", style = MaterialTheme.typography.labelMedium)
+                        Text("Current Value", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         Text(
                             MilestoneCalculator.formatInr(currentPortfolioValue),
                             style = MaterialTheme.typography.headlineSmall,
@@ -87,7 +88,17 @@ fun MilestonesTab(
                             color = MaterialTheme.colorScheme.primary
                         )
                     }
-                    if (latestSnapshot == null) {
+                    if (latestSnapshot != null) {
+                        Column(horizontalAlignment = Alignment.End) {
+                            Text("Total Invested", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(
+                                MilestoneCalculator.formatInr(totalInvested),
+                                style = MaterialTheme.typography.headlineSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer
+                            )
+                        }
+                    } else {
                         Text(
                             "No snapshot yet",
                             style = MaterialTheme.typography.bodySmall,
@@ -356,10 +367,10 @@ private fun ProjectionChart(
         val textH = refLayout.size.height.toFloat()
         val textW = refLayout.size.width.toFloat()
 
-        val paddingTop = textH * 2.4f      // space for "Yr N" callout labels above dots
-        val paddingBottom = textH * 1.8f   // space for X-axis year labels
+        val paddingTop = textH * 1.6f      // space for "Yr N" callout labels above dots
+        val paddingBottom = textH * 1.6f   // space for X-axis year labels
         val paddingLeft = 8f
-        val paddingRight = textW * 3.4f    // space for milestone labels on the right
+        val paddingRight = textW * 2.8f    // space for milestone labels on the right
 
         val chartWidth = size.width - paddingLeft - paddingRight
         val chartHeight = size.height - paddingTop - paddingBottom

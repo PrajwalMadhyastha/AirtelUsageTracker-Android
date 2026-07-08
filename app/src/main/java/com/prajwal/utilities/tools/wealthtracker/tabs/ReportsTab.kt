@@ -38,6 +38,7 @@ private val assetColors = listOf(
     Color(0xFFEC4899)  // REITs — pink
 )
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ReportsTab(
     snapshots: List<AssetSnapshotEntity>,          // newest-first (for latest diversification)
@@ -64,14 +65,19 @@ fun ReportsTab(
     }
 
     val latest = snapshots.first()
-    val assetClasses = latest.toAssetClasses().filter { it.current > 0 }
+    val allAssetClasses = latest.toAssetClasses()
+
+    // Toggle: show Invested or Current value breakdown in the donut
+    var showInvested by remember { mutableStateOf(false) }
+    val assetClasses = allAssetClasses.filter { if (showInvested) it.invested > 0 else it.current > 0 }
+    val totalForPct = if (showInvested) latest.totalInvested else latest.totalCurrent
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        // ── Section A: Diversification ─────────────────────────────────
+        // ── Section A: Diversification ───────────────────────────────────────
         item {
             Text(
                 "Diversification",
@@ -83,7 +89,22 @@ fun ReportsTab(
         item {
             Card(modifier = Modifier.fillMaxWidth(), elevation = CardDefaults.cardElevation(2.dp)) {
                 Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                    // Donut chart
+
+                    // ── Invested / Current toggle ───────────────────────────────
+                    SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                        SegmentedButton(
+                            selected = !showInvested,
+                            onClick = { showInvested = false },
+                            shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2)
+                        ) { Text("Current Value") }
+                        SegmentedButton(
+                            selected = showInvested,
+                            onClick = { showInvested = true },
+                            shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2)
+                        ) { Text("Invested") }
+                    }
+
+                    // ── Donut chart ──────────────────────────────────────────
                     if (assetClasses.isNotEmpty()) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
@@ -91,7 +112,9 @@ fun ReportsTab(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             DonutChart(
-                                values = assetClasses.map { it.current.toFloat() },
+                                values = assetClasses.map {
+                                    if (showInvested) it.invested.toFloat() else it.current.toFloat()
+                                },
                                 colors = assetColors.take(assetClasses.size),
                                 modifier = Modifier.size(160.dp)
                             )
@@ -101,8 +124,9 @@ fun ReportsTab(
                                 verticalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
                                 assetClasses.forEachIndexed { i, asset ->
-                                    val pct = if (latest.totalCurrent > 0)
-                                        (asset.current / latest.totalCurrent * 100) else 0.0
+                                    val pct = if (totalForPct > 0)
+                                        ((if (showInvested) asset.invested else asset.current) / totalForPct * 100) else 0.0
+                                    val value = if (showInvested) asset.invested else asset.current
                                     Row(verticalAlignment = Alignment.CenterVertically) {
                                         Box(
                                             modifier = Modifier
@@ -118,7 +142,7 @@ fun ReportsTab(
                                                 fontWeight = FontWeight.Medium
                                             )
                                             Text(
-                                                MilestoneCalculator.formatInr(asset.current),
+                                                MilestoneCalculator.formatInr(value),
                                                 style = MaterialTheme.typography.bodySmall,
                                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                                             )
