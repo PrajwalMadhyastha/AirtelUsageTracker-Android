@@ -143,7 +143,6 @@ fun HoldingsTab(
                                     },
                                     onClick = {
                                         onSortOptionChanged(option)
-                                        showSortMenu = false
                                     }
                                 )
                             }
