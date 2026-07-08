@@ -5,6 +5,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.AddCircleOutline
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Refresh
@@ -35,6 +36,18 @@ fun HoldingsTab(
 ) {
     var showAddDialog by remember { mutableStateOf(false) }
     var holdingToEdit by remember { mutableStateOf<HoldingEntity?>(null) }
+    var holdingToTopUp by remember { mutableStateOf<HoldingEntity?>(null) }
+
+    if (holdingToTopUp != null) {
+        TopUpDialog(
+            holding = holdingToTopUp!!,
+            onDismiss = { holdingToTopUp = null },
+            onSave = { updatedHolding ->
+                onUpdateHolding(updatedHolding)
+                holdingToTopUp = null
+            }
+        )
+    }
 
     if (showAddDialog || holdingToEdit != null) {
         AddHoldingDialog(
@@ -139,6 +152,7 @@ fun HoldingsTab(
                         items(classHoldings, key = { it.id }) { holding ->
                             HoldingCard(
                                 holding = holding,
+                                onTopUp = { holdingToTopUp = holding },
                                 onEdit = { holdingToEdit = holding },
                                 onDelete = { onDeleteHolding(holding) }
                             )
@@ -160,7 +174,7 @@ fun HoldingsTab(
 }
 
 @Composable
-fun HoldingCard(holding: HoldingEntity, onEdit: () -> Unit, onDelete: () -> Unit) {
+fun HoldingCard(holding: HoldingEntity, onTopUp: () -> Unit, onEdit: () -> Unit, onDelete: () -> Unit) {
     val currentVal = holding.unitsHeld * holding.latestPrice
     val gain = currentVal - holding.investedAmount
     val gainPct = if (holding.investedAmount > 0) (gain / holding.investedAmount) * 100 else 0.0
@@ -189,6 +203,9 @@ fun HoldingCard(holding: HoldingEntity, onEdit: () -> Unit, onDelete: () -> Unit
                     )
                 }
                 Row {
+                    IconButton(onClick = onTopUp) {
+                        Icon(Icons.Default.AddCircleOutline, contentDescription = "Top Up", tint = MaterialTheme.colorScheme.primary)
+                    }
                     IconButton(onClick = onEdit) {
                         Icon(Icons.Default.Edit, contentDescription = "Edit")
                     }
@@ -244,5 +261,65 @@ fun HoldingCard(holding: HoldingEntity, onEdit: () -> Unit, onDelete: () -> Unit
                 }
             }
         }
+        }
     }
+}
+
+@Composable
+fun TopUpDialog(
+    holding: HoldingEntity,
+    onDismiss: () -> Unit,
+    onSave: (HoldingEntity) -> Unit
+) {
+    var newUnitsStr by remember { mutableStateOf("") }
+    var newInvestedStr by remember { mutableStateOf("") }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Top-Up ${holding.name.ifBlank { holding.identifier }}") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    "Current Units: ${holding.unitsHeld}\nCurrent Invested: ${MilestoneCalculator.formatInrExact(holding.investedAmount)}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                OutlinedTextField(
+                    value = newUnitsStr,
+                    onValueChange = { newUnitsStr = it },
+                    label = { Text("New Units Bought") },
+                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number),
+                    singleLine = true
+                )
+                OutlinedTextField(
+                    value = newInvestedStr,
+                    onValueChange = { newInvestedStr = it },
+                    label = { Text("New Amount Invested (₹)") },
+                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number),
+                    singleLine = true
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    val newUnits = newUnitsStr.toDoubleOrNull() ?: 0.0
+                    val newInv = newInvestedStr.toDoubleOrNull() ?: 0.0
+                    if (newUnits > 0 && newInv > 0) {
+                        onSave(
+                            holding.copy(
+                                unitsHeld = holding.unitsHeld + newUnits,
+                                investedAmount = holding.investedAmount + newInv
+                            )
+                        )
+                    }
+                }
+            ) {
+                Text("Save")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancel") }
+        }
+    )
 }
