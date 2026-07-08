@@ -388,7 +388,7 @@ private fun ProjectionChart(
 
         fun xOf(i: Int) = paddingLeft + i.toFloat() / (n - 1).coerceAtLeast(1) * chartWidth
         fun yOf(v: Float): Float {
-            val ratio = (v / maxVal).coerceIn(0f, 1f)
+            val ratio = (v / maxVal).coerceAtLeast(0f)
             return paddingTop + chartHeight * (1f - ratio)
         }
 
