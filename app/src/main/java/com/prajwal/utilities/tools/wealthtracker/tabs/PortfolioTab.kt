@@ -122,7 +122,7 @@ fun PortfolioTab(
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
+        verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         // ── Live summary card ─────────────
         item {
@@ -136,59 +136,64 @@ fun PortfolioTab(
                 ),
                 elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
             ) {
-                Row(
+                Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 20.dp, vertical = 16.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+                        .padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    Column {
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                         Text(
                             "Total Invested",
-                            style = MaterialTheme.typography.labelSmall,
+                            style = MaterialTheme.typography.titleMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         Text(
                             MilestoneCalculator.formatInrExact(totalInv),
-                            style = MaterialTheme.typography.titleMedium,
+                            style = MaterialTheme.typography.headlineSmall,
                             fontWeight = FontWeight.Bold
                         )
                     }
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(
-                            "P / L",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Text(
-                            "${if (gainPositive) "+" else "-"}${MilestoneCalculator.formatInrExact(abs(gain))}",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = if (gainPositive) MaterialTheme.colorScheme.primary
-                            else MaterialTheme.colorScheme.error
-                        )
-                        if (totalInv > 0) {
-                            val pct = (gain / totalInv * 100)
-                            Text(
-                                "${if (gainPositive) "+" else ""}${String.format("%.1f", pct)}%",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = if (gainPositive) MaterialTheme.colorScheme.primary
-                                else MaterialTheme.colorScheme.error
-                            )
-                        }
-                    }
-                    Column(horizontalAlignment = Alignment.End) {
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                         Text(
                             "Live Value",
-                            style = MaterialTheme.typography.labelSmall,
+                            style = MaterialTheme.typography.titleMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         Text(
                             MilestoneCalculator.formatInrExact(totalCur),
-                            style = MaterialTheme.typography.titleMedium,
+                            style = MaterialTheme.typography.headlineSmall,
                             fontWeight = FontWeight.Bold
                         )
+                    }
+                    HorizontalDivider(color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.2f))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(), 
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            "Total P/L",
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Column(horizontalAlignment = Alignment.End) {
+                            Text(
+                                "${if (gainPositive) "+" else "-"}${MilestoneCalculator.formatInrExact(abs(gain))}",
+                                style = MaterialTheme.typography.headlineSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = if (gainPositive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
+                            )
+                            if (totalInv > 0) {
+                                val pct = (gain / totalInv * 100)
+                                Text(
+                                    "${if (gainPositive) "+" else ""}${String.format("%.2f", pct)}%",
+                                    style = MaterialTheme.typography.titleSmall,
+                                    color = if (gainPositive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -209,7 +214,7 @@ fun PortfolioTab(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 20.dp, vertical = 12.dp),
+                        .padding(16.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -229,45 +234,20 @@ fun PortfolioTab(
             }
         }
 
-        // ── Header banner ─────────────────────────────────────────────
+        // ── Asset Breakdown ───────────────────────────────────────────────
         item {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(
-                        Brush.horizontalGradient(
-                            listOf(
-                                MaterialTheme.colorScheme.primary,
-                                MaterialTheme.colorScheme.tertiary
-                            )
-                        )
-                    )
-                    .padding(20.dp)
-            ) {
-                Column {
-                    Text(
-                        "Portfolio Overview",
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White
-                    )
-                    Text(
-                        "Your portfolio is automatically calculated from your Holdings.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = Color.White.copy(alpha = 0.85f),
-                        modifier = Modifier.padding(top = 4.dp)
-                    )
-                }
+            val assets = listOf(
+                "Equity" to Pair(eqInv, eqCur),
+                "Gold" to Pair(gdInv, gdCur),
+                "Debt" to Pair(dbInv, dbCur),
+                "Silver" to Pair(slInv, slCur),
+                "REITs" to Pair(rtInv, rtCur)
+            ).filter { it.second.first > 0 || it.second.second > 0 }
+            
+            if (assets.isNotEmpty()) {
+                AssetBreakdownCard(assets)
             }
         }
-
-        // ── Asset summary cards ───────────────────────────────────────
-        if (eqInv > 0 || eqCur > 0) item { AssetSummaryCard("Equity", eqInv, eqCur) }
-        if (gdInv > 0 || gdCur > 0) item { AssetSummaryCard("Gold", gdInv, gdCur) }
-        if (dbInv > 0 || dbCur > 0) item { AssetSummaryCard("Debt", dbInv, dbCur) }
-        if (slInv > 0 || slCur > 0) item { AssetSummaryCard("Silver", slInv, slCur) }
-        if (rtInv > 0 || rtCur > 0) item { AssetSummaryCard("REITs", rtInv, rtCur) }
 
         // ── Save button ───────────────────────────────────────────────
         item {
@@ -346,26 +326,57 @@ fun PortfolioTab(
 }
 
 @Composable
-private fun AssetSummaryCard(
-    label: String,
-    invested: Double,
-    current: Double
-) {
+private fun AssetBreakdownCard(assets: List<Pair<String, Pair<Double, Double>>>) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
-            Text(label, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            Text("Asset Breakdown", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(12.dp))
-            Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
-                Column {
-                    Text("Invested", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Text(MilestoneCalculator.formatInrExact(invested), style = MaterialTheme.typography.bodyLarge)
+            
+            assets.forEachIndexed { index, (name, values) ->
+                val (inv, cur) = values
+                val gain = cur - inv
+                val gainPositive = gain >= 0
+                
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 4.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(name, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+                    
+                    Column(horizontalAlignment = Alignment.End) {
+                        Text(
+                            MilestoneCalculator.formatInrExact(cur),
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                "Inv: ${MilestoneCalculator.formatInrExact(inv)}",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            if (inv > 0) {
+                                val pct = (gain / inv) * 100
+                                Spacer(Modifier.width(8.dp))
+                                Text(
+                                    "${if (gainPositive) "+" else ""}${String.format("%.1f", pct)}%",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = if (gainPositive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+                    }
                 }
-                Column(horizontalAlignment = Alignment.End) {
-                    Text("Live Value", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Text(MilestoneCalculator.formatInrExact(current), style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Bold)
+                if (index < assets.lastIndex) {
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp), color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.2f))
                 }
             }
         }
