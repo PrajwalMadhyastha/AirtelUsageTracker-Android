@@ -3,6 +3,7 @@ package com.prajwal.utilities.tools.wealthtracker
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.prajwal.utilities.tools.wealthtracker.data.CalculatorSettings
+import com.prajwal.utilities.tools.wealthtracker.data.SortOption
 import com.prajwal.utilities.tools.wealthtracker.data.WealthPreferences
 import com.prajwal.utilities.tools.wealthtracker.data.WealthRepository
 import com.prajwal.utilities.tools.wealthtracker.data.db.AssetSnapshotEntity
@@ -98,6 +99,15 @@ class WealthTrackerViewModel(
 
     fun setAuthenticated(auth: Boolean) {
         _isAuthenticated.value = auth
+    }
+
+    val holdingsSortOption: StateFlow<SortOption> = prefs.holdingsSortOption
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), SortOption.DEFAULT)
+
+    fun updateHoldingsSortOption(option: SortOption) {
+        viewModelScope.launch {
+            prefs.updateHoldingsSortOption(option)
+        }
     }
 
     fun toggleBiometric() {

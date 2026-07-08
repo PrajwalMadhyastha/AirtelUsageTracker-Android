@@ -9,6 +9,7 @@ import androidx.compose.material.icons.filled.AddCircleOutline
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Sort
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.foundation.lazy.LazyRow
@@ -19,6 +20,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.graphics.Color
 import com.prajwal.utilities.tools.wealthtracker.data.MilestoneCalculator
 import com.prajwal.utilities.tools.wealthtracker.data.db.HoldingEntity
+import com.prajwal.utilities.tools.wealthtracker.data.SortOption
 import com.prajwal.utilities.tools.wealthtracker.data.network.AssetSearchResult
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -29,6 +31,8 @@ fun HoldingsTab(
     holdings: List<HoldingEntity>,
     isSyncing: Boolean,
     searchResults: List<AssetSearchResult>,
+    sortOption: SortOption,
+    onSortOptionChanged: (SortOption) -> Unit,
     onSearchQueryChanged: (String, Boolean) -> Unit,
     onAddHolding: (HoldingEntity) -> Unit,
     onUpdateHolding: (HoldingEntity) -> Unit,
@@ -103,20 +107,49 @@ fun HoldingsTab(
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold
                 )
-                Button(
-                    onClick = onSyncNow,
-                    enabled = !isSyncing
-                ) {
-                    if (isSyncing) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(24.dp),
-                            color = MaterialTheme.colorScheme.onPrimary,
-                            strokeWidth = 2.dp
-                        )
-                    } else {
-                        Icon(Icons.Default.Refresh, contentDescription = "Sync Now")
-                        Spacer(Modifier.width(8.dp))
-                        Text("Sync Live")
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    var showSortMenu by remember { mutableStateOf(false) }
+                    Box {
+                        IconButton(onClick = { showSortMenu = true }) {
+                            Icon(Icons.Default.Sort, contentDescription = "Sort")
+                        }
+                        DropdownMenu(
+                            expanded = showSortMenu,
+                            onDismissRequest = { showSortMenu = false }
+                        ) {
+                            SortOption.entries.forEach { option ->
+                                DropdownMenuItem(
+                                    text = { 
+                                        Text(
+                                            option.label, 
+                                            fontWeight = if (option == sortOption) FontWeight.Bold else FontWeight.Normal,
+                                            color = if (option == sortOption) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                                        ) 
+                                    },
+                                    onClick = {
+                                        onSortOptionChanged(option)
+                                        showSortMenu = false
+                                    }
+                                )
+                            }
+                        }
+                    }
+                    Spacer(Modifier.width(8.dp))
+                    Button(
+                        onClick = onSyncNow,
+                        enabled = !isSyncing
+                    ) {
+                        if (isSyncing) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(24.dp),
+                                color = MaterialTheme.colorScheme.onPrimary,
+                                strokeWidth = 2.dp
+                            )
+                        } else {
+                            Icon(Icons.Default.Refresh, contentDescription = "Sync Now")
+                            Spacer(Modifier.width(8.dp))
+                            Text("Sync Live")
+                        }
                     }
                 }
             }
@@ -204,7 +237,23 @@ fun HoldingsTab(
                                 }
                             }
                         }
-                        items(classHoldings, key = { it.id }) { holding ->
+                        val sortedClassHoldings = when (sortOption) {
+                            SortOption.DEFAULT -> classHoldings
+                            SortOption.ALPHABETICAL -> classHoldings.sortedBy { it.name }
+                            SortOption.DAILY_PCT -> classHoldings.sortedByDescending { h ->
+                                if (h.previousClosePrice > 0) (h.latestPrice - h.previousClosePrice) / h.previousClosePrice else 0.0
+                            }
+                            SortOption.LTP -> classHoldings.sortedByDescending { it.latestPrice }
+                            SortOption.PL_ABSOLUTE -> classHoldings.sortedByDescending { h ->
+                                (h.unitsHeld * h.latestPrice) - h.investedAmount
+                            }
+                            SortOption.PL_PERCENT -> classHoldings.sortedByDescending { h ->
+                                if (h.investedAmount > 0) ((h.unitsHeld * h.latestPrice) - h.investedAmount) / h.investedAmount else 0.0
+                            }
+                            SortOption.INVESTED -> classHoldings.sortedByDescending { it.investedAmount }
+                        }
+
+                        items(sortedClassHoldings, key = { it.id }) { holding ->
                             HoldingCard(
                                 holding = holding,
                                 onTopUp = { holdingToTopUp = holding },

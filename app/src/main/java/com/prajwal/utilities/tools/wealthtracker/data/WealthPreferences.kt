@@ -7,6 +7,7 @@ import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.doublePreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.preferencesDataStore
+import androidx.datastore.preferences.core.stringPreferencesKey
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
@@ -23,6 +24,7 @@ class WealthPreferences(private val context: Context) {
         val ANNUAL_STEPUP_PERCENT = doublePreferencesKey("annual_stepup_percent")
         val EXPECTED_RETURN_PERCENT = doublePreferencesKey("expected_return_percent")
         val IS_BIOMETRIC_ENABLED = booleanPreferencesKey("is_biometric_enabled")
+        val HOLDINGS_SORT_OPTION = stringPreferencesKey("holdings_sort_option")
 
         // Defaults
         const val DEFAULT_MONTHLY_INVESTMENT = 10000.0   // ₹10,000/month
@@ -42,6 +44,16 @@ class WealthPreferences(private val context: Context) {
     val isBiometricEnabled: Flow<Boolean> = context.wealthDataStore.data
         .map { it[IS_BIOMETRIC_ENABLED] ?: false }
 
+    val holdingsSortOption: Flow<SortOption> = context.wealthDataStore.data
+        .map { preferences ->
+            val optionStr = preferences[HOLDINGS_SORT_OPTION] ?: SortOption.DEFAULT.name
+            try {
+                SortOption.valueOf(optionStr)
+            } catch (e: IllegalArgumentException) {
+                SortOption.DEFAULT
+            }
+        }
+
     suspend fun updateMonthlyInvestment(amount: Double) {
         context.wealthDataStore.edit { it[MONTHLY_INVESTMENT] = amount }
     }
@@ -56,5 +68,9 @@ class WealthPreferences(private val context: Context) {
 
     suspend fun updateBiometricEnabled(enabled: Boolean) {
         context.wealthDataStore.edit { it[IS_BIOMETRIC_ENABLED] = enabled }
+    }
+
+    suspend fun updateHoldingsSortOption(option: SortOption) {
+        context.wealthDataStore.edit { it[HOLDINGS_SORT_OPTION] = option.name }
     }
 }

@@ -51,6 +51,7 @@ fun WealthTrackerScreen(
     val holdings by viewModel.holdings.collectAsState()
     val isSyncing by viewModel.isSyncing.collectAsState()
     val searchResults by viewModel.searchResults.collectAsState()
+    val holdingsSortOption by viewModel.holdingsSortOption.collectAsState()
     var selectedTab by remember { mutableStateOf(WealthTab.PORTFOLIO) }
 
     val isBiometricEnabled by viewModel.isBiometricEnabled.collectAsState()
@@ -269,6 +270,8 @@ fun WealthTrackerScreen(
                     holdings = holdings,
                     isSyncing = isSyncing,
                     searchResults = searchResults,
+                    sortOption = holdingsSortOption,
+                    onSortOptionChanged = viewModel::updateHoldingsSortOption,
                     onSearchQueryChanged = viewModel::updateSearchQuery,
                     onAddHolding = viewModel::addHolding,
                     onUpdateHolding = viewModel::updateHolding,
