@@ -43,7 +43,8 @@ private val assetColors = listOf(
 @Composable
 fun ReportsTab(
     snapshots: List<AssetSnapshotEntity>,          // newest-first (for latest diversification)
-    snapshotsChronological: List<AssetSnapshotEntity>  // oldest-first (for growth chart)
+    snapshotsChronological: List<AssetSnapshotEntity>,  // oldest-first (for growth chart)
+    transactions: List<com.prajwal.utilities.tools.wealthtracker.data.db.TransactionEntity>
 ) {
     if (snapshots.isEmpty()) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -79,6 +80,10 @@ fun ReportsTab(
         ((latest.totalCurrent / latest.totalInvested).pow(1.0 / durationYears) - 1.0) * 100.0
     else null
 
+    val overallXirr = if (transactions.isNotEmpty()) {
+        com.prajwal.utilities.tools.wealthtracker.data.XirrCalculator.calculateXirr(transactions, latest.totalCurrent) * 100.0
+    } else 0.0
+
     // Toggle: show Invested or Current value breakdown in the donut
     var showInvested by remember { mutableStateOf(false) }
     val assetClasses = allAssetClasses.filter { if (showInvested) it.invested > 0 else it.current > 0 }
@@ -107,13 +112,44 @@ fun ReportsTab(
                         colors = CardDefaults.cardColors(containerColor = returnColor.copy(alpha = 0.1f))
                     ) {
                         Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            Text("Absolute Return", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text("Abs Ret", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             Text(
                                 "${if (returnPositive) "+" else ""}${"%.2f".format(absoluteReturnPct)}%",
-                                style = MaterialTheme.typography.titleLarge,
+                                style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.Bold,
                                 color = returnColor
                             )
+                        }
+                    }
+                    // XIRR
+                    Card(
+                        modifier = Modifier.weight(1f),
+                        colors = CardDefaults.cardColors(
+                            containerColor = if (overallXirr != 0.0) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant
+                        )
+                    ) {
+                        Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text("XIRR", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            if (overallXirr != 0.0) {
+                                Text(
+                                    "${if (overallXirr >= 0) "+" else ""}${"%.2f".format(overallXirr)}%",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                            } else {
+                                Text(
+                                    "—",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Text(
+                                    "Need 1+ day track record",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
                         }
                     }
                     // CAGR
@@ -129,20 +165,15 @@ fun ReportsTab(
                             Text("CAGR", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             if (cagr != null) {
                                 Text(
-                                    "${if (cagr >= 0) "+" else ""}${"%.2f".format(cagr)}% / yr",
-                                    style = MaterialTheme.typography.titleLarge,
+                                    "${if (cagr >= 0) "+" else ""}${"%.2f".format(cagr)}%",
+                                    style = MaterialTheme.typography.titleMedium,
                                     fontWeight = FontWeight.Bold,
                                     color = if (cagrPositive) Color(0xFF6366F1) else MaterialTheme.colorScheme.error
-                                )
-                                Text(
-                                    "${"%.1f".format(durationYears)} yr track record",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             } else {
                                 Text(
                                     "—",
-                                    style = MaterialTheme.typography.titleLarge,
+                                    style = MaterialTheme.typography.titleMedium,
                                     fontWeight = FontWeight.Bold,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )

@@ -8,8 +8,8 @@ import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
-    entities = [AssetSnapshotEntity::class, HoldingEntity::class],
-    version = 4,
+    entities = [AssetSnapshotEntity::class, HoldingEntity::class, TransactionEntity::class],
+    version = 5,
     // FIX #6: exportSchema = true lets Room generate JSON schema files under app/schemas/.
     // These are required for MigrationTestHelper — without them, every DB schema change
     // is unverifiable and risks silent data loss in production.
@@ -56,6 +56,40 @@ abstract class WealthDatabase : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_4_5 = object : Migration(4, 5) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // 1. Create transactions table
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `transactions` (
+                        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        `holdingId` INTEGER NOT NULL,
+                        `timestamp` INTEGER NOT NULL,
+                        `units` REAL NOT NULL,
+                        `pricePerUnit` REAL NOT NULL,
+                        `type` TEXT NOT NULL,
+                        FOREIGN KEY(`holdingId`) REFERENCES `holdings`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE
+                    )
+                    """.trimIndent()
+                )
+                
+                // 2. Create index
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_transactions_holdingId` ON `transactions` (`holdingId`)")
+                
+                // 3. Day Zero insertion
+                val currentTime = System.currentTimeMillis()
+                db.execSQL(
+                    """
+                    INSERT INTO `transactions` (`holdingId`, `timestamp`, `units`, `pricePerUnit`, `type`)
+                    SELECT `id`, $currentTime, `unitsHeld`, 
+                    CASE WHEN `unitsHeld` > 0 THEN `investedAmount` / `unitsHeld` ELSE 0 END, 
+                    'BUY'
+                    FROM `holdings`
+                    """.trimIndent()
+                )
+            }
+        }
+
         fun getDatabase(context: Context): WealthDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -63,7 +97,7 @@ abstract class WealthDatabase : RoomDatabase() {
                     WealthDatabase::class.java,
                     "wealth_tracker_database"
                 )
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
                 .build()
                 INSTANCE = instance
                 instance

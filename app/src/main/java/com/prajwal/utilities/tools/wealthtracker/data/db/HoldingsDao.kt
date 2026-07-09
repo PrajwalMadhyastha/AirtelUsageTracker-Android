@@ -14,7 +14,7 @@ interface HoldingsDao {
     fun getAllHoldings(): Flow<List<HoldingEntity>>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertHolding(holding: HoldingEntity)
+    suspend fun insertHolding(holding: HoldingEntity): Long
 
     @Update
     suspend fun updateHolding(holding: HoldingEntity)
@@ -27,4 +27,13 @@ interface HoldingsDao {
     // for any holding updated via this targeted query path.
     @Query("UPDATE holdings SET latestPrice = :price, previousClosePrice = :previousClosePrice, lastUpdatedAt = :timestamp WHERE id = :id")
     suspend fun updatePrice(id: Int, price: Double, previousClosePrice: Double, timestamp: Long = System.currentTimeMillis())
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertTransaction(transaction: TransactionEntity)
+
+    @Query("SELECT * FROM transactions WHERE holdingId = :holdingId ORDER BY timestamp ASC")
+    fun getTransactionsForHolding(holdingId: Int): Flow<List<TransactionEntity>>
+
+    @Query("SELECT * FROM transactions ORDER BY timestamp ASC")
+    fun getAllTransactions(): Flow<List<TransactionEntity>>
 }

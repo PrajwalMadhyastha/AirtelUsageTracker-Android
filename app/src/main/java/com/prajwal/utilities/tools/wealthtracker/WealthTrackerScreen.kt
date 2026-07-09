@@ -47,6 +47,7 @@ fun WealthTrackerScreen(
 ) {
     val snapshots by viewModel.snapshots.collectAsState()
     val snapshotsChronological by viewModel.snapshotsChronological.collectAsState()
+    val transactions by viewModel.transactions.collectAsState()
     val calculatorSettings by viewModel.calculatorSettings.collectAsState()
     val holdings by viewModel.holdings.collectAsState()
     val isSyncing by viewModel.isSyncing.collectAsState()
@@ -272,6 +273,7 @@ fun WealthTrackerScreen(
             when (selectedTab) {
                 WealthTab.HOLDINGS -> HoldingsTab(
                     holdings = holdings,
+                    transactions = transactions,
                     isSyncing = isSyncing,
                     searchResults = searchResults,
                     sortOption = holdingsSortOption,
@@ -280,6 +282,7 @@ fun WealthTrackerScreen(
                     onSearchQueryChanged = viewModel::updateSearchQuery,
                     onAddHolding = viewModel::addHolding,
                     onUpdateHolding = viewModel::updateHolding,
+                    onTopUpHolding = viewModel::topUpHolding,
                     onDeleteHolding = viewModel::deleteHolding,
                     onSyncNow = {
                         viewModel.syncPricesNow { msg ->
@@ -291,6 +294,7 @@ fun WealthTrackerScreen(
                 WealthTab.PORTFOLIO -> PortfolioTab(
                     snapshots = snapshots,
                     holdings = holdings,
+                    transactions = transactions,
                     isSyncing = isSyncing,
                     onSyncNow = {
                         viewModel.syncPricesNow { msg ->
@@ -305,7 +309,8 @@ fun WealthTrackerScreen(
 
                 WealthTab.REPORTS -> ReportsTab(
                     snapshots = snapshots,
-                    snapshotsChronological = snapshotsChronological
+                    snapshotsChronological = snapshotsChronological,
+                    transactions = transactions
                 )
 
                 WealthTab.MILESTONES -> MilestonesTab(

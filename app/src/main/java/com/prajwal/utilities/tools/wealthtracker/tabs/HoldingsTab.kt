@@ -33,6 +33,7 @@ import java.util.Locale
 @Composable
 fun HoldingsTab(
     holdings: List<HoldingEntity>,
+    transactions: List<com.prajwal.utilities.tools.wealthtracker.data.db.TransactionEntity>,
     isSyncing: Boolean,
     searchResults: List<AssetSearchResult>,
     sortOption: SortOption,
@@ -41,6 +42,7 @@ fun HoldingsTab(
     onSearchQueryChanged: (String, Boolean) -> Unit,
     onAddHolding: (HoldingEntity) -> Unit,
     onUpdateHolding: (HoldingEntity) -> Unit,
+    onTopUpHolding: (HoldingEntity, Double, Double) -> Unit,
     onDeleteHolding: (HoldingEntity) -> Unit,
     onSyncNow: () -> Unit
 ) {
@@ -75,8 +77,8 @@ fun HoldingsTab(
         TopUpDialog(
             holding = holdingToTopUp!!,
             onDismiss = { holdingToTopUp = null },
-            onSave = { updatedHolding ->
-                onUpdateHolding(updatedHolding)
+            onSave = { addedUnits, addedInvested ->
+                onTopUpHolding(holdingToTopUp!!, addedUnits, addedInvested)
                 holdingToTopUp = null
             }
         )
@@ -373,6 +375,7 @@ fun HoldingsTab(
                         items(sortedClassHoldings, key = { it.id }) { holding ->
                             HoldingCard(
                                 holding = holding,
+                                transactions = transactions.filter { it.holdingId == holding.id },
                                 onTopUp = { holdingToTopUp = holding },
                                 onEdit = { holdingToEdit = holding },
                                 onDelete = { holdingToDelete = holding }
@@ -395,10 +398,20 @@ fun HoldingsTab(
 }
 
 @Composable
-fun HoldingCard(holding: HoldingEntity, onTopUp: () -> Unit, onEdit: () -> Unit, onDelete: () -> Unit) {
+fun HoldingCard(
+    holding: HoldingEntity, 
+    transactions: List<com.prajwal.utilities.tools.wealthtracker.data.db.TransactionEntity>,
+    onTopUp: () -> Unit, 
+    onEdit: () -> Unit, 
+    onDelete: () -> Unit
+) {
     val currentVal = holding.unitsHeld * holding.latestPrice
     val gain = currentVal - holding.investedAmount
     val gainPct = if (holding.investedAmount > 0) (gain / holding.investedAmount) * 100 else 0.0
+    val xirr = if (holding.latestPrice > 0 && transactions.isNotEmpty()) {
+        com.prajwal.utilities.tools.wealthtracker.data.XirrCalculator.calculateXirr(transactions, currentVal)
+    } else 0.0
+    
     val sdf = remember { SimpleDateFormat("dd MMM, HH:mm", Locale.getDefault()) }
 
     Card(
@@ -507,12 +520,20 @@ fun HoldingCard(holding: HoldingEntity, onTopUp: () -> Unit, onEdit: () -> Unit,
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                    Text(
-                        "${if (gain >= 0) "+" else "-"}${MilestoneCalculator.formatInrExact(kotlin.math.abs(gain))} (${"%.2f".format(gainPct)}%)",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = if (gain >= 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
-                        fontWeight = FontWeight.Bold
-                    )
+                    Column(horizontalAlignment = Alignment.End) {
+                        Text(
+                            "XIRR: ${"%.2f".format(xirr * 100)}%",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.primary,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            "${if (gain >= 0) "+" else "-"}${MilestoneCalculator.formatInrExact(kotlin.math.abs(gain))} (${"%.2f".format(gainPct)}%)",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = if (gain >= 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
                 }
             } else {
                 // FIX #22 / hint: tell user why values are missing instead of silent "-"
@@ -530,7 +551,7 @@ fun HoldingCard(holding: HoldingEntity, onTopUp: () -> Unit, onEdit: () -> Unit,
 fun TopUpDialog(
     holding: HoldingEntity,
     onDismiss: () -> Unit,
-    onSave: (HoldingEntity) -> Unit
+    onSave: (Double, Double) -> Unit
 ) {
     var newUnitsStr by remember { mutableStateOf("") }
     var newInvestedStr by remember { mutableStateOf("") }
@@ -576,12 +597,7 @@ fun TopUpDialog(
                     val newUnits = newUnitsStr.toDoubleOrNull() ?: 0.0
                     val newInv = newInvestedStr.toDoubleOrNull() ?: 0.0
                     if (newUnits > 0 && newInv > 0) {
-                        onSave(
-                            holding.copy(
-                                unitsHeld = holding.unitsHeld + newUnits,
-                                investedAmount = holding.investedAmount + newInv
-                            )
-                        )
+                        onSave(newUnits, newInv)
                     }
                 }
             ) {

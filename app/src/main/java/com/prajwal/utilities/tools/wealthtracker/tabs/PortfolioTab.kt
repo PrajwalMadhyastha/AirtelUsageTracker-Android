@@ -44,6 +44,7 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 fun PortfolioTab(
     snapshots: List<AssetSnapshotEntity>,
     holdings: List<HoldingEntity>,
+    transactions: List<com.prajwal.utilities.tools.wealthtracker.data.db.TransactionEntity>,
     isSyncing: Boolean,
     onSyncNow: () -> Unit,
     onSave: (AssetSnapshotEntity) -> Unit,
@@ -75,6 +76,10 @@ fun PortfolioTab(
     val totalCur = eqCur + gdCur + dbCur + slCur + rtCur
     val gain = totalCur - totalInv
     val gainPositive = gain >= 0
+
+    val overallXirr = if (transactions.isNotEmpty()) {
+        com.prajwal.utilities.tools.wealthtracker.data.XirrCalculator.calculateXirr(transactions, totalCur)
+    } else 0.0
 
     val dailyGain = holdings.sumOf { if (it.previousClosePrice > 0) it.unitsHeld * (it.latestPrice - it.previousClosePrice) else 0.0 }
     val dailyPrevCloseTotal = holdings.sumOf { if (it.previousClosePrice > 0) it.unitsHeld * it.previousClosePrice else 0.0 }
@@ -188,6 +193,12 @@ fun PortfolioTab(
                             )
                             if (totalInv > 0) {
                                 val pct = (gain / totalInv * 100)
+                                Text(
+                                    "XIRR: ${"%.2f".format(overallXirr * 100)}%",
+                                    style = MaterialTheme.typography.titleSmall,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    fontWeight = FontWeight.Bold
+                                )
                                 Text(
                                     "${if (gainPositive) "+" else ""}${String.format("%.2f", pct)}%",
                                     style = MaterialTheme.typography.titleSmall,

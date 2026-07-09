@@ -30,7 +30,7 @@ class WealthRepository(
 
     fun getAllHoldings(): Flow<List<HoldingEntity>> = holdingsDao.getAllHoldings()
 
-    suspend fun insertHolding(holding: HoldingEntity) = holdingsDao.insertHolding(holding)
+    suspend fun insertHolding(holding: HoldingEntity): Long = holdingsDao.insertHolding(holding)
 
     suspend fun updateHolding(holding: HoldingEntity) = holdingsDao.updateHolding(holding)
 
@@ -39,4 +39,12 @@ class WealthRepository(
     suspend fun updateHoldingPrice(id: Int, price: Double, previousClosePrice: Double) =
         holdingsDao.updatePrice(id, price, previousClosePrice)
 
+    suspend fun insertTransaction(transaction: com.prajwal.utilities.tools.wealthtracker.data.db.TransactionEntity) =
+        holdingsDao.insertTransaction(transaction)
+
+    fun getTransactionsForHolding(holdingId: Int): Flow<List<com.prajwal.utilities.tools.wealthtracker.data.db.TransactionEntity>> =
+        holdingsDao.getTransactionsForHolding(holdingId)
+
+    fun getAllTransactions(): Flow<List<com.prajwal.utilities.tools.wealthtracker.data.db.TransactionEntity>> =
+        holdingsDao.getAllTransactions()
 }

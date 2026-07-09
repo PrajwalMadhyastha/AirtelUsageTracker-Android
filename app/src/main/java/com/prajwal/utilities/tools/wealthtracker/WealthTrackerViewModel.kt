@@ -45,6 +45,9 @@ class WealthTrackerViewModel(
     val holdings: StateFlow<List<HoldingEntity>> = repository.getAllHoldings()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    val transactions: StateFlow<List<com.prajwal.utilities.tools.wealthtracker.data.db.TransactionEntity>> = repository.getAllTransactions()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
     private val _isSyncing = MutableStateFlow(false)
     val isSyncing: StateFlow<Boolean> = _isSyncing.asStateFlow()
 
@@ -157,7 +160,47 @@ class WealthTrackerViewModel(
     /** Holdings management */
     fun addHolding(holding: HoldingEntity) {
         viewModelScope.launch {
-            repository.insertHolding(holding)
+            val id = repository.insertHolding(holding)
+            
+            // Log initial BUY transaction for Day Zero tracking
+            if (holding.unitsHeld > 0) {
+                val pricePerUnit = holding.investedAmount / holding.unitsHeld
+                repository.insertTransaction(
+                    com.prajwal.utilities.tools.wealthtracker.data.db.TransactionEntity(
+                        holdingId = id.toInt(),
+                        timestamp = System.currentTimeMillis(),
+                        units = holding.unitsHeld,
+                        pricePerUnit = pricePerUnit,
+                        type = com.prajwal.utilities.tools.wealthtracker.data.db.TransactionType.BUY
+                    )
+                )
+            }
+            
+            syncPricesNow()
+        }
+    }
+
+    fun topUpHolding(holding: HoldingEntity, addedUnits: Double, addedInvested: Double) {
+        viewModelScope.launch {
+            val updatedHolding = holding.copy(
+                unitsHeld = holding.unitsHeld + addedUnits,
+                investedAmount = holding.investedAmount + addedInvested
+            )
+            repository.updateHolding(updatedHolding)
+            
+            if (addedUnits > 0) {
+                val pricePerUnit = addedInvested / addedUnits
+                repository.insertTransaction(
+                    com.prajwal.utilities.tools.wealthtracker.data.db.TransactionEntity(
+                        holdingId = holding.id,
+                        timestamp = System.currentTimeMillis(),
+                        units = addedUnits,
+                        pricePerUnit = pricePerUnit,
+                        type = com.prajwal.utilities.tools.wealthtracker.data.db.TransactionType.BUY
+                    )
+                )
+            }
+            
             syncPricesNow()
         }
     }
