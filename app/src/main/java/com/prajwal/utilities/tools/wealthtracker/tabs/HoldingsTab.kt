@@ -12,6 +12,8 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Sort
+import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.foundation.lazy.LazyRow
@@ -168,33 +170,120 @@ fun HoldingsTab(
                 }
             }
 
-            // Category Filter Row
-            val filters = listOf("All", "Stocks", "Mutual Funds", "Gold", "Debt", "Silver", "REITs")
-            var selectedFilter by remember { mutableStateOf("All") }
+            // Filters
+            val assetClassFilters = listOf("All", "Equity", "Debt", "Gold", "Silver", "REITs")
+            val instrumentFilters = listOf("All", "Stocks", "Mutual Funds", "SGBs")
             
+            var selectedAssetClass by remember { mutableStateOf("All") }
+            var selectedInstrument by remember { mutableStateOf("All") }
+            var showFilterSheet by remember { mutableStateOf(false) }
+            
+            // Active Filters Row
             LazyRow(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 0.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                items(filters) { filter ->
+                item {
+                    val activeCount = (if (selectedAssetClass != "All") 1 else 0) + (if (selectedInstrument != "All") 1 else 0)
                     FilterChip(
-                        selected = selectedFilter == filter,
-                        onClick = { selectedFilter = filter },
-                        label = { Text(filter) }
+                        selected = activeCount > 0,
+                        onClick = { showFilterSheet = true },
+                        label = { Text("Filters") },
+                        leadingIcon = { Icon(Icons.Default.Tune, contentDescription = "Filters", modifier = Modifier.size(16.dp)) },
+                        trailingIcon = if (activeCount > 0) { { Badge { Text(activeCount.toString()) } } } else null
                     )
+                }
+
+                if (selectedAssetClass != "All") {
+                    item {
+                        InputChip(
+                            selected = true,
+                            onClick = { selectedAssetClass = "All" },
+                            label = { Text(selectedAssetClass) },
+                            trailingIcon = { Icon(Icons.Default.Close, contentDescription = "Remove", modifier = Modifier.size(16.dp)) }
+                        )
+                    }
+                }
+                
+                if (selectedInstrument != "All") {
+                    item {
+                        InputChip(
+                            selected = true,
+                            onClick = { selectedInstrument = "All" },
+                            label = { Text(selectedInstrument) },
+                            trailingIcon = { Icon(Icons.Default.Close, contentDescription = "Remove", modifier = Modifier.size(16.dp)) }
+                        )
+                    }
                 }
             }
 
-            val filteredHoldings = remember(holdings, selectedFilter) {
-                holdings.filter {
-                    when (selectedFilter) {
-                        "All" -> true
-                        "Stocks" -> it.instrumentType == "Stock"
-                        "Mutual Funds" -> it.instrumentType == "MF"
-                        else -> it.assetClass == selectedFilter
+            if (showFilterSheet) {
+                ModalBottomSheet(
+                    onDismissRequest = { showFilterSheet = false },
+                    sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 24.dp, vertical = 16.dp)
+                            .padding(bottom = 32.dp),
+                        verticalArrangement = Arrangement.spacedBy(24.dp)
+                    ) {
+                        Text("Filter Portfolio", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+
+                        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                            Text("Asset Class", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                items(assetClassFilters) { filter ->
+                                    FilterChip(
+                                        selected = selectedAssetClass == filter,
+                                        onClick = { selectedAssetClass = filter },
+                                        label = { Text(filter) }
+                                    )
+                                }
+                            }
+                        }
+
+                        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                            Text("Instrument Type", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                items(instrumentFilters) { filter ->
+                                    FilterChip(
+                                        selected = selectedInstrument == filter,
+                                        onClick = { selectedInstrument = filter },
+                                        label = { Text(filter) }
+                                    )
+                                }
+                            }
+                        }
+
+                        Button(
+                            onClick = { showFilterSheet = false },
+                            modifier = Modifier.fillMaxWidth().height(52.dp)
+                        ) {
+                            Text("Apply Filters", style = MaterialTheme.typography.titleMedium)
+                        }
                     }
+                }
+            }
+
+            val filteredHoldings = remember(holdings, selectedAssetClass, selectedInstrument) {
+                holdings.filter { holding ->
+                    val matchAssetClass = when (selectedAssetClass) {
+                        "All" -> true
+                        else -> holding.assetClass == selectedAssetClass
+                    }
+                    val matchInstrument = when (selectedInstrument) {
+                        "All" -> true
+                        "Stocks" -> holding.instrumentType == "Stock"
+                        "Mutual Funds" -> holding.instrumentType == "MF"
+                        "SGBs" -> holding.instrumentType == "SGB"
+                        else -> true
+                    }
+                    matchAssetClass && matchInstrument
                 }
             }
 
