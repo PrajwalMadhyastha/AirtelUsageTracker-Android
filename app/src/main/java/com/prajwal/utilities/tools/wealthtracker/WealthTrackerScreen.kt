@@ -107,32 +107,35 @@ fun WealthTrackerScreen(
         )
     }
 
-    // Observe lifecycle to reset authentication on background
+    val currentIsAuthenticated by rememberUpdatedState(isAuthenticated)
+    val currentIsBiometricEnabled by rememberUpdatedState(isBiometricEnabled)
+
+    // Observe lifecycle to reset authentication on background and prompt on foreground
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_STOP) {
                 viewModel.setAuthenticated(false)
+            } else if (event == Lifecycle.Event.ON_RESUME) {
+                if (currentIsBiometricEnabled && !currentIsAuthenticated) {
+                    val activity = context as? FragmentActivity
+                    if (activity != null && BiometricHelper.isBiometricAvailable(activity)) {
+                        coroutineScope.launch {
+                            val success = BiometricHelper.authenticate(
+                                activity = activity,
+                                title = "Unlock Wealth Tracker",
+                                subtitle = "Verify your identity to access your portfolio"
+                            )
+                            if (success) {
+                                viewModel.setAuthenticated(true)
+                            }
+                        }
+                    }
+                }
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose {
             lifecycleOwner.lifecycle.removeObserver(observer)
-        }
-    }
-
-    LaunchedEffect(isBiometricEnabled, isAuthenticated) {
-        if (isBiometricEnabled && !isAuthenticated) {
-            val activity = context as? FragmentActivity
-            if (activity != null && BiometricHelper.isBiometricAvailable(activity)) {
-                val success = BiometricHelper.authenticate(
-                    activity = activity,
-                    title = "Unlock Wealth Tracker",
-                    subtitle = "Verify your identity to access your portfolio"
-                )
-                if (success) {
-                    viewModel.setAuthenticated(true)
-                }
-            }
         }
     }
 
