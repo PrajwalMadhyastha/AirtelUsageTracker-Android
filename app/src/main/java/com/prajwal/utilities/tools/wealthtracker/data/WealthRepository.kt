@@ -1,0 +1,50 @@
+package com.prajwal.utilities.tools.wealthtracker.data
+
+import com.prajwal.utilities.tools.wealthtracker.data.db.AssetSnapshotEntity
+import com.prajwal.utilities.tools.wealthtracker.data.db.WealthDao
+import com.prajwal.utilities.tools.wealthtracker.data.db.HoldingEntity
+import com.prajwal.utilities.tools.wealthtracker.data.db.HoldingsDao
+import kotlinx.coroutines.flow.Flow
+
+class WealthRepository(
+    private val dao: WealthDao,
+    private val holdingsDao: HoldingsDao
+) {
+
+    /** All snapshots newest-first — used for the history list and diversification (latest). */
+    fun getAllSnapshots(): Flow<List<AssetSnapshotEntity>> = dao.getAllSnapshots()
+
+    /** All snapshots oldest-first — used for the growth-over-time line chart. */
+    fun getAllSnapshotsChronological(): Flow<List<AssetSnapshotEntity>> = dao.getAllSnapshotsAscending()
+
+    /** Latest single snapshot — used to pre-fill the portfolio input form. */
+    suspend fun getLatestSnapshot(): AssetSnapshotEntity? = dao.getLatestSnapshot()
+
+    /** Insert a new timestamped snapshot. */
+    suspend fun insertSnapshot(snapshot: AssetSnapshotEntity) = dao.insertSnapshot(snapshot)
+
+    /** Delete a snapshot (accidental entry removal). */
+    suspend fun deleteSnapshot(snapshot: AssetSnapshotEntity) = dao.deleteSnapshot(snapshot)
+
+    // --- Holdings ---
+
+    fun getAllHoldings(): Flow<List<HoldingEntity>> = holdingsDao.getAllHoldings()
+
+    suspend fun insertHolding(holding: HoldingEntity): Long = holdingsDao.insertHolding(holding)
+
+    suspend fun updateHolding(holding: HoldingEntity) = holdingsDao.updateHolding(holding)
+
+    suspend fun deleteHolding(holding: HoldingEntity) = holdingsDao.deleteHolding(holding)
+
+    suspend fun updateHoldingPrice(id: Int, price: Double, previousClosePrice: Double) =
+        holdingsDao.updatePrice(id, price, previousClosePrice)
+
+    suspend fun insertTransaction(transaction: com.prajwal.utilities.tools.wealthtracker.data.db.TransactionEntity) =
+        holdingsDao.insertTransaction(transaction)
+
+    fun getTransactionsForHolding(holdingId: Int): Flow<List<com.prajwal.utilities.tools.wealthtracker.data.db.TransactionEntity>> =
+        holdingsDao.getTransactionsForHolding(holdingId)
+
+    fun getAllTransactions(): Flow<List<com.prajwal.utilities.tools.wealthtracker.data.db.TransactionEntity>> =
+        holdingsDao.getAllTransactions()
+}

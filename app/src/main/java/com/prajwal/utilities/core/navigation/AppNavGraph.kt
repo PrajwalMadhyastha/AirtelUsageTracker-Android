@@ -23,6 +23,12 @@ import com.prajwal.utilities.tools.crickettoss.data.CricketTossRepository
 import com.prajwal.utilities.tools.cricketstats.CricketStatsScreen
 import com.prajwal.utilities.tools.cricketstats.data.db.MatchWithInnings
 import com.prajwal.utilities.tools.passwordmanager.PasswordManagerScreen
+import com.prajwal.utilities.tools.wealthtracker.WealthTrackerScreen
+import com.prajwal.utilities.tools.wealthtracker.WealthTrackerViewModel
+import com.prajwal.utilities.tools.wealthtracker.WealthTrackerViewModelFactory
+import com.prajwal.utilities.tools.wealthtracker.data.WealthPreferences
+import com.prajwal.utilities.tools.wealthtracker.data.WealthRepository
+import com.prajwal.utilities.tools.wealthtracker.data.db.WealthDatabase
 import com.prajwal.utilities.tools.wifiusage.OnboardingScreen
 import com.prajwal.utilities.tools.wifiusage.ReportsScreen
 import com.prajwal.utilities.tools.wifiusage.SettingsScreen
@@ -189,6 +195,27 @@ fun AppNavHost(
         // ── Workout Tracker ───────────────────────────────────────────
         composable(Screen.WorkoutTracker.route) {
             WorkoutTrackerScreen(onNavigateBack = { navController.popBackStack() })
+        }
+
+        // ── Wealth Tracker ────────────────────────────────────────────
+        composable(Screen.WealthTracker.route) {
+            val context = LocalContext.current
+            val db = remember { com.prajwal.utilities.tools.wealthtracker.data.db.WealthDatabase.getDatabase(context) }
+            val repository = remember {
+                com.prajwal.utilities.tools.wealthtracker.data.WealthRepository(
+                    db.wealthDao(),
+                    db.holdingsDao()
+                )
+            }
+            val marketRepo = remember { com.prajwal.utilities.tools.wealthtracker.data.network.MarketDataRepository.getInstance() }
+            val prefs = remember { com.prajwal.utilities.tools.wealthtracker.data.WealthPreferences(context) }
+            val viewModel: com.prajwal.utilities.tools.wealthtracker.WealthTrackerViewModel = viewModel(
+                factory = com.prajwal.utilities.tools.wealthtracker.WealthTrackerViewModelFactory(repository, marketRepo, prefs)
+            )
+            WealthTrackerScreen(
+                viewModel = viewModel,
+                onNavigateBack = { navController.popBackStack() }
+            )
         }
     }
 }
