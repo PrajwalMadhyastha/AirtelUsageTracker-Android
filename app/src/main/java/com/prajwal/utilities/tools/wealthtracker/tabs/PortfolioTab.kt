@@ -77,6 +77,8 @@ fun PortfolioTab(
     val gainPositive = gain >= 0
 
     val dailyGain = holdings.sumOf { if (it.previousClosePrice > 0) it.unitsHeld * (it.latestPrice - it.previousClosePrice) else 0.0 }
+    val dailyPrevCloseTotal = holdings.sumOf { if (it.previousClosePrice > 0) it.unitsHeld * it.previousClosePrice else 0.0 }
+    val dailyGainPct = if (dailyPrevCloseTotal > 0) (dailyGain / dailyPrevCloseTotal) * 100 else 0.0
     val dailyGainPositive = dailyGain >= 0
 
     // Only enable save if we have some investment and haven't just saved
@@ -224,7 +226,7 @@ fun PortfolioTab(
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Text(
-                        "${if (dailyGainPositive) "+" else "-"}${MilestoneCalculator.formatInrExact(abs(dailyGain), showDecimals = true)}",
+                        "${if (dailyGainPositive) "+" else "-"}${MilestoneCalculator.formatInrExact(abs(dailyGain), showDecimals = true)} (${String.format("%.2f", abs(dailyGainPct))}%)",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
                         color = if (dailyGainPositive) MaterialTheme.colorScheme.primary

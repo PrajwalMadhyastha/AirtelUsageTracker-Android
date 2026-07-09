@@ -187,12 +187,37 @@ fun HoldingsTab(
                 }
             }
 
-            val filteredHoldings = holdings.filter {
-                when (selectedFilter) {
-                    "All" -> true
-                    "Stocks" -> it.instrumentType == "Stock"
-                    "Mutual Funds" -> it.instrumentType == "MF"
-                    else -> it.assetClass == selectedFilter
+            val filteredHoldings = remember(holdings, selectedFilter) {
+                holdings.filter {
+                    when (selectedFilter) {
+                        "All" -> true
+                        "Stocks" -> it.instrumentType == "Stock"
+                        "Mutual Funds" -> it.instrumentType == "MF"
+                        else -> it.assetClass == selectedFilter
+                    }
+                }
+            }
+
+            val groupedAndSortedHoldings = remember(filteredHoldings, sortOption, sortAscending) {
+                filteredHoldings.groupBy { it.assetClass }.mapValues { (_, classHoldings) ->
+                    when (sortOption) {
+                        SortOption.DEFAULT -> classHoldings
+                        SortOption.ALPHABETICAL -> if (sortAscending) classHoldings.sortedBy { it.name.lowercase() } else classHoldings.sortedByDescending { it.name.lowercase() }
+                        SortOption.DAILY_PCT -> classHoldings.let { list ->
+                            val sel: (HoldingEntity) -> Double = { h -> if (h.previousClosePrice > 0) (h.latestPrice - h.previousClosePrice) / h.previousClosePrice else 0.0 }
+                            if (sortAscending) list.sortedBy(sel) else list.sortedByDescending(sel)
+                        }
+                        SortOption.LTP -> if (sortAscending) classHoldings.sortedBy { it.latestPrice } else classHoldings.sortedByDescending { it.latestPrice }
+                        SortOption.PL_ABSOLUTE -> classHoldings.let { list ->
+                            val sel: (HoldingEntity) -> Double = { h -> (h.unitsHeld * h.latestPrice) - h.investedAmount }
+                            if (sortAscending) list.sortedBy(sel) else list.sortedByDescending(sel)
+                        }
+                        SortOption.PL_PERCENT -> classHoldings.let { list ->
+                            val sel: (HoldingEntity) -> Double = { h -> if (h.investedAmount > 0) ((h.unitsHeld * h.latestPrice) - h.investedAmount) / h.investedAmount else 0.0 }
+                            if (sortAscending) list.sortedBy(sel) else list.sortedByDescending(sel)
+                        }
+                        SortOption.INVESTED -> if (sortAscending) classHoldings.sortedBy { it.investedAmount } else classHoldings.sortedByDescending { it.investedAmount }
+                    }
                 }
             }
 
@@ -209,15 +234,20 @@ fun HoldingsTab(
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                     modifier = Modifier.padding(horizontal = 16.dp)
                 ) {
-                    val grouped = filteredHoldings.groupBy { it.assetClass }
-                    grouped.forEach { (assetClass, classHoldings) ->
+                    groupedAndSortedHoldings.forEach { (assetClass, sortedClassHoldings) ->
                         item {
-                            val hasDayPL = classHoldings.any { it.previousClosePrice > 0 }
+                            val hasDayPL = sortedClassHoldings.any { it.previousClosePrice > 0 }
                             val categoryDayGain = if (hasDayPL) {
-                                classHoldings.sumOf { holding ->
+                                sortedClassHoldings.sumOf { holding ->
                                     if (holding.previousClosePrice > 0) holding.unitsHeld * (holding.latestPrice - holding.previousClosePrice) else 0.0
                                 }
                             } else 0.0
+                            val categoryPrevCloseTotal = if (hasDayPL) {
+                                sortedClassHoldings.sumOf { holding ->
+                                    if (holding.previousClosePrice > 0) holding.unitsHeld * holding.previousClosePrice else 0.0
+                                }
+                            } else 0.0
+                            val categoryDayGainPct = if (categoryPrevCloseTotal > 0) (categoryDayGain / categoryPrevCloseTotal) * 100 else 0.0
 
                             Row(
                                 modifier = Modifier
@@ -241,7 +271,7 @@ fun HoldingsTab(
                                             color = MaterialTheme.colorScheme.onSurfaceVariant
                                         )
                                         Text(
-                                            text = "$sign${MilestoneCalculator.formatInrExact(kotlin.math.abs(categoryDayGain))}",
+                                            text = "$sign${MilestoneCalculator.formatInrExact(kotlin.math.abs(categoryDayGain))} (${"%.2f".format(kotlin.math.abs(categoryDayGainPct))}%)",
                                             style = MaterialTheme.typography.titleSmall,
                                             color = color,
                                             fontWeight = FontWeight.Medium
@@ -249,24 +279,6 @@ fun HoldingsTab(
                                     }
                                 }
                             }
-                        }
-                        val sortedClassHoldings = when (sortOption) {
-                            SortOption.DEFAULT -> classHoldings
-                            SortOption.ALPHABETICAL -> if (sortAscending) classHoldings.sortedBy { it.name.lowercase() } else classHoldings.sortedByDescending { it.name.lowercase() }
-                            SortOption.DAILY_PCT -> classHoldings.let { list ->
-                                val sel: (HoldingEntity) -> Double = { h -> if (h.previousClosePrice > 0) (h.latestPrice - h.previousClosePrice) / h.previousClosePrice else 0.0 }
-                                if (sortAscending) list.sortedBy(sel) else list.sortedByDescending(sel)
-                            }
-                            SortOption.LTP -> if (sortAscending) classHoldings.sortedBy { it.latestPrice } else classHoldings.sortedByDescending { it.latestPrice }
-                            SortOption.PL_ABSOLUTE -> classHoldings.let { list ->
-                                val sel: (HoldingEntity) -> Double = { h -> (h.unitsHeld * h.latestPrice) - h.investedAmount }
-                                if (sortAscending) list.sortedBy(sel) else list.sortedByDescending(sel)
-                            }
-                            SortOption.PL_PERCENT -> classHoldings.let { list ->
-                                val sel: (HoldingEntity) -> Double = { h -> if (h.investedAmount > 0) ((h.unitsHeld * h.latestPrice) - h.investedAmount) / h.investedAmount else 0.0 }
-                                if (sortAscending) list.sortedBy(sel) else list.sortedByDescending(sel)
-                            }
-                            SortOption.INVESTED -> if (sortAscending) classHoldings.sortedBy { it.investedAmount } else classHoldings.sortedByDescending { it.investedAmount }
                         }
 
                         items(sortedClassHoldings, key = { it.id }) { holding ->
@@ -298,7 +310,7 @@ fun HoldingCard(holding: HoldingEntity, onTopUp: () -> Unit, onEdit: () -> Unit,
     val currentVal = holding.unitsHeld * holding.latestPrice
     val gain = currentVal - holding.investedAmount
     val gainPct = if (holding.investedAmount > 0) (gain / holding.investedAmount) * 100 else 0.0
-    val sdf = SimpleDateFormat("dd MMM, HH:mm", Locale.getDefault())
+    val sdf = remember { SimpleDateFormat("dd MMM, HH:mm", Locale.getDefault()) }
 
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -370,6 +382,8 @@ fun HoldingCard(holding: HoldingEntity, onTopUp: () -> Unit, onEdit: () -> Unit,
                 val avgBuyPrice = if (holding.unitsHeld > 0) holding.investedAmount / holding.unitsHeld else 0.0
                 val dayGain = if (holding.previousClosePrice > 0)
                     holding.unitsHeld * (holding.latestPrice - holding.previousClosePrice) else 0.0
+                val dayGainPct = if (holding.previousClosePrice > 0)
+                    ((holding.latestPrice - holding.previousClosePrice) / holding.previousClosePrice) * 100 else 0.0
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween
@@ -386,7 +400,7 @@ fun HoldingCard(holding: HoldingEntity, onTopUp: () -> Unit, onEdit: () -> Unit,
                         Column(horizontalAlignment = Alignment.End) {
                             Text("Day's P&L", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             Text(
-                                "${if (dayGain >= 0) "+" else "-"}${MilestoneCalculator.formatInrExact(kotlin.math.abs(dayGain))}",
+                                "${if (dayGain >= 0) "+" else "-"}${MilestoneCalculator.formatInrExact(kotlin.math.abs(dayGain))} (${"%.2f".format(kotlin.math.abs(dayGainPct))}%)",
                                 style = MaterialTheme.typography.bodySmall,
                                 fontWeight = FontWeight.Medium,
                                 color = if (dayGain >= 0) Color(0xFF16A34A) else MaterialTheme.colorScheme.error
