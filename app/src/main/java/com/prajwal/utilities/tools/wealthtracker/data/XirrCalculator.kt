@@ -57,24 +57,34 @@ object XirrCalculator {
 
         val amounts = cashFlows.map { it.amount }
 
-        // Start with a guess of 10%
-        var rate = 0.10
-        
-        for (i in 0 until MAX_ITERATIONS) {
+        var low = -0.999999
+        var high = 10000.0 // Cap at 1,000,000% to prevent UI-breaking string lengths
+        var rate = 0.0
+
+        val fLow = xnpv(low, amounts, fractions)
+        val fHigh = xnpv(high, amounts, fractions)
+
+        if (fLow * fHigh > 0) {
+            // If function doesn't cross zero, it's outside our bounds.
+            if (fHigh > 0) return high
+            if (fLow < 0) return low
+        }
+
+        for (i in 0 until 100) {
+            rate = (low + high) / 2.0
             val f = xnpv(rate, amounts, fractions)
-            val df = dxnpv(rate, amounts, fractions)
             
-            if (abs(df) < TOLERANCE) break
-            
-            val newRate = rate - f / df
-            if (abs(newRate - rate) < TOLERANCE) {
-                return newRate
+            if (abs(f) < TOLERANCE || (high - low) < TOLERANCE) {
+                break
             }
-            rate = newRate
+            
+            if (f > 0) {
+                low = rate
+            } else {
+                high = rate
+            }
         }
         
-        // If it didn't converge properly, or it's nonsensical
-        if (rate.isNaN() || rate.isInfinite()) return 0.0
         return rate
     }
 

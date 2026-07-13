@@ -309,8 +309,7 @@ fun WealthTrackerScreen(
 
                 WealthTab.REPORTS -> ReportsTab(
                     snapshots = snapshots,
-                    snapshotsChronological = snapshotsChronological,
-                    transactions = transactions
+                    snapshotsChronological = snapshotsChronological
                 )
 
                 WealthTab.MILESTONES -> MilestonesTab(

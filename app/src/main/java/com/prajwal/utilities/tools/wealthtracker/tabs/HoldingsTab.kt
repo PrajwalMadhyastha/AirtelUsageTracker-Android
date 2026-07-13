@@ -408,9 +408,6 @@ fun HoldingCard(
     val currentVal = holding.unitsHeld * holding.latestPrice
     val gain = currentVal - holding.investedAmount
     val gainPct = if (holding.investedAmount > 0) (gain / holding.investedAmount) * 100 else 0.0
-    val xirr = if (holding.latestPrice > 0 && transactions.isNotEmpty()) {
-        com.prajwal.utilities.tools.wealthtracker.data.XirrCalculator.calculateXirr(transactions, currentVal)
-    } else 0.0
     
     val sdf = remember { SimpleDateFormat("dd MMM, HH:mm", Locale.getDefault()) }
 
@@ -520,20 +517,12 @@ fun HoldingCard(
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                    Column(horizontalAlignment = Alignment.End) {
-                        Text(
-                            "XIRR: ${"%.2f".format(xirr * 100)}%",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.primary,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Text(
-                            "${if (gain >= 0) "+" else "-"}${MilestoneCalculator.formatInrExact(kotlin.math.abs(gain))} (${"%.2f".format(gainPct)}%)",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = if (gain >= 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
+                    Text(
+                        "${if (gain >= 0) "+" else "-"}${MilestoneCalculator.formatInrExact(kotlin.math.abs(gain))} (${"%.2f".format(gainPct)}%)",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = if (gain >= 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
+                        fontWeight = FontWeight.Bold
+                    )
                 }
             } else {
                 // FIX #22 / hint: tell user why values are missing instead of silent "-"
