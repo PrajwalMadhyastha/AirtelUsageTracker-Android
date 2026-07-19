@@ -228,9 +228,10 @@ class WealthTrackerViewModel(
                 // The previous code called .stateIn(viewModelScope).value on a cold Flow,
                 // which always returned an empty list before the first DB emission arrived.
                 val currentHoldings = holdings.value
+                val allHoldingsSynced = currentHoldings.isNotEmpty() && currentHoldings.all { it.latestPrice > 0.0 }
                 var skippedCount = 0
                 for (holding in currentHoldings) {
-                    if (MarketDataRepository.shouldSkipSync(holding.lastUpdatedAt)) {
+                    if (allHoldingsSynced && MarketDataRepository.shouldSkipSync(holding.lastUpdatedAt)) {
                         skippedCount++
                         continue
                     }

@@ -23,7 +23,7 @@ class PortfolioSyncWorker(
             val holdings = holdingsDao.getAllHoldings().first()
 
             for (holding in holdings) {
-                if (MarketDataRepository.shouldSkipSync(holding.lastUpdatedAt)) {
+                if (holding.latestPrice > 0.0 && MarketDataRepository.shouldSkipSync(holding.lastUpdatedAt)) {
                     continue
                 }
 
