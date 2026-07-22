@@ -54,6 +54,8 @@ fun WealthTrackerScreen(
     val searchResults by viewModel.searchResults.collectAsState()
     val holdingsSortOption by viewModel.holdingsSortOption.collectAsState()
     val holdingsSortAscending by viewModel.holdingsSortAscending.collectAsState()
+    val autoSnapshotEnabled by viewModel.autoSnapshotEnabled.collectAsState()
+    val autoSnapshotDayOfMonth by viewModel.autoSnapshotDayOfMonth.collectAsState()
     var selectedTab by remember { mutableStateOf(WealthTab.PORTFOLIO) }
 
     val isBiometricEnabled by viewModel.isBiometricEnabled.collectAsState()
@@ -104,6 +106,65 @@ fun WealthTrackerScreen(
             },
             dismissButton = {
                 TextButton(onClick = { pendingImportUri = null }) { Text("Cancel") }
+            }
+        )
+    }
+
+    var showAutoSnapshotDialog by remember { mutableStateOf(false) }
+
+    if (showAutoSnapshotDialog) {
+        var localEnabled by remember { mutableStateOf(autoSnapshotEnabled) }
+        var localDay by remember { mutableStateOf(autoSnapshotDayOfMonth.toString()) }
+        var inputError by remember { mutableStateOf(false) }
+
+        AlertDialog(
+            onDismissRequest = { showAutoSnapshotDialog = false },
+            title = { Text("Auto Snapshot Settings") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                    Text(
+                        "Automatically take a portfolio snapshot once a month on your chosen day after a background sync completes.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text("Enable Auto Snapshots")
+                        Switch(checked = localEnabled, onCheckedChange = { localEnabled = it })
+                    }
+                    if (localEnabled) {
+                        OutlinedTextField(
+                            value = localDay,
+                            onValueChange = { 
+                                localDay = it
+                                val day = it.toIntOrNull()
+                                inputError = day == null || day !in 1..31
+                            },
+                            label = { Text("Day of Month (1-31)") },
+                            keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number),
+                            isError = inputError,
+                            supportingText = if (inputError) { { Text("Enter a valid day between 1 and 31") } } else null
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        if (!inputError) {
+                            viewModel.updateAutoSnapshotEnabled(localEnabled)
+                            localDay.toIntOrNull()?.let { viewModel.updateAutoSnapshotDayOfMonth(it) }
+                            showAutoSnapshotDialog = false
+                        }
+                    },
+                    enabled = !inputError
+                ) { Text("Save") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showAutoSnapshotDialog = false }) { Text("Cancel") }
             }
         )
     }
@@ -240,6 +301,13 @@ fun WealthTrackerScreen(
                             onClick = {
                                 showMenu = false
                                 importLauncher.launch(arrayOf("application/json", "*/*"))
+                            }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Auto Snapshots") },
+                            onClick = {
+                                showMenu = false
+                                showAutoSnapshotDialog = true
                             }
                         )
                     }

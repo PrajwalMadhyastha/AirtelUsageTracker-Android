@@ -139,6 +139,20 @@ class WealthTrackerViewModel(
         }
     }
 
+    val autoSnapshotEnabled: StateFlow<Boolean> = prefs.autoSnapshotEnabled
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+
+    val autoSnapshotDayOfMonth: StateFlow<Int> = prefs.autoSnapshotDayOfMonth
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 1)
+
+    fun updateAutoSnapshotEnabled(enabled: Boolean) {
+        viewModelScope.launch { prefs.updateAutoSnapshotEnabled(enabled) }
+    }
+
+    fun updateAutoSnapshotDayOfMonth(day: Int) {
+        viewModelScope.launch { prefs.updateAutoSnapshotDayOfMonth(day) }
+    }
+
     /** Tracks if the "pre-fill from latest snapshot" operation is loading. */
     private val _prefillSnapshot = MutableStateFlow<AssetSnapshotEntity?>(null)
     val prefillSnapshot: StateFlow<AssetSnapshotEntity?> = _prefillSnapshot.asStateFlow()

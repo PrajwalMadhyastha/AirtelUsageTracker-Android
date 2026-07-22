@@ -26,6 +26,8 @@ class WealthPreferences(private val context: Context) {
         val IS_BIOMETRIC_ENABLED = booleanPreferencesKey("is_biometric_enabled")
         val HOLDINGS_SORT_OPTION = stringPreferencesKey("holdings_sort_option")
         val HOLDINGS_SORT_ASCENDING = booleanPreferencesKey("holdings_sort_ascending")
+        val AUTO_SNAPSHOT_ENABLED = booleanPreferencesKey("auto_snapshot_enabled")
+        val AUTO_SNAPSHOT_DAY_OF_MONTH = androidx.datastore.preferences.core.intPreferencesKey("auto_snapshot_day_of_month")
 
         // Defaults
         const val DEFAULT_MONTHLY_INVESTMENT = 10000.0   // ₹10,000/month
@@ -58,6 +60,12 @@ class WealthPreferences(private val context: Context) {
     val holdingsSortAscending: Flow<Boolean> = context.wealthDataStore.data
         .map { it[HOLDINGS_SORT_ASCENDING] ?: true }
 
+    val autoSnapshotEnabled: Flow<Boolean> = context.wealthDataStore.data
+        .map { it[AUTO_SNAPSHOT_ENABLED] ?: false }
+
+    val autoSnapshotDayOfMonth: Flow<Int> = context.wealthDataStore.data
+        .map { it[AUTO_SNAPSHOT_DAY_OF_MONTH] ?: 1 }
+
     suspend fun updateMonthlyInvestment(amount: Double) {
         context.wealthDataStore.edit { it[MONTHLY_INVESTMENT] = amount }
     }
@@ -80,5 +88,13 @@ class WealthPreferences(private val context: Context) {
 
     suspend fun updateHoldingsSortAscending(isAscending: Boolean) {
         context.wealthDataStore.edit { it[HOLDINGS_SORT_ASCENDING] = isAscending }
+    }
+
+    suspend fun updateAutoSnapshotEnabled(enabled: Boolean) {
+        context.wealthDataStore.edit { it[AUTO_SNAPSHOT_ENABLED] = enabled }
+    }
+
+    suspend fun updateAutoSnapshotDayOfMonth(day: Int) {
+        context.wealthDataStore.edit { it[AUTO_SNAPSHOT_DAY_OF_MONTH] = day }
     }
 }
