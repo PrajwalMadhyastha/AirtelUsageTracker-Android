@@ -30,6 +30,8 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
+import com.prajwal.utilities.tools.wealthtracker.data.network.AssetPrices
+
 @Composable
 fun HoldingsTab(
     holdings: List<HoldingEntity>,
@@ -38,6 +40,7 @@ fun HoldingsTab(
     searchResults: List<AssetSearchResult>,
     sortOption: SortOption,
     sortAscending: Boolean,
+    nifty50Prices: AssetPrices? = null,
     onSortOptionChanged: (SortOption) -> Unit,
     onSearchQueryChanged: (String, Boolean) -> Unit,
     onAddHolding: (HoldingEntity) -> Unit,
@@ -47,6 +50,7 @@ fun HoldingsTab(
     onSyncNow: () -> Unit
 ) {
     var showAddDialog by remember { mutableStateOf(false) }
+    var showAddManualDialog by remember { mutableStateOf(false) }
     var holdingToEdit by remember { mutableStateOf<HoldingEntity?>(null) }
     var holdingToTopUp by remember { mutableStateOf<HoldingEntity?>(null) }
     // FIX #18: Guard deletion behind a confirmation dialog (mirrors snapshot deletion in PortfolioTab)
@@ -84,7 +88,17 @@ fun HoldingsTab(
         )
     }
 
-    if (showAddDialog || holdingToEdit != null) {
+    if (showAddManualDialog || (holdingToEdit != null && holdingToEdit!!.isManual)) {
+        AddManualHoldingDialog(
+            holdingToEdit = holdingToEdit,
+            onDismiss = { showAddManualDialog = false; holdingToEdit = null },
+            onSave = {
+                if (holdingToEdit != null) onUpdateHolding(it) else onAddHolding(it)
+                showAddManualDialog = false
+                holdingToEdit = null
+            }
+        )
+    } else if (showAddDialog || holdingToEdit != null) {
         AddHoldingDialog(
             holdingToEdit = holdingToEdit,
             searchResults = searchResults,
@@ -171,6 +185,8 @@ fun HoldingsTab(
                     }
                 }
             }
+
+            Nifty50Card(prices = nifty50Prices, modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp))
 
             // Filters
             val assetClassFilters = listOf("All", "Equity", "Debt", "Gold", "Silver", "REITs")
@@ -386,13 +402,30 @@ fun HoldingsTab(
             }
         }
 
-        FloatingActionButton(
-            onClick = { showAddDialog = true },
+        var showAddMenu by remember { mutableStateOf(false) }
+        Box(
             modifier = Modifier
                 .align(Alignment.BottomEnd)
                 .padding(24.dp)
         ) {
-            Icon(Icons.Default.Add, contentDescription = "Add Holding")
+            FloatingActionButton(
+                onClick = { showAddMenu = true }
+            ) {
+                Icon(Icons.Default.Add, contentDescription = "Add Holding")
+            }
+            DropdownMenu(
+                expanded = showAddMenu,
+                onDismissRequest = { showAddMenu = false }
+            ) {
+                DropdownMenuItem(
+                    text = { Text("Add Market Holding") },
+                    onClick = { showAddMenu = false; showAddDialog = true }
+                )
+                DropdownMenuItem(
+                    text = { Text("Add Manual Holding") },
+                    onClick = { showAddMenu = false; showAddManualDialog = true }
+                )
+            }
         }
     }
 }

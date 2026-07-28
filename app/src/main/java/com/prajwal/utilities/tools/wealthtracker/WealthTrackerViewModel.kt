@@ -36,11 +36,29 @@ import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
+import com.prajwal.utilities.tools.wealthtracker.data.network.AssetPrices
+
 class WealthTrackerViewModel(
     private val repository: WealthRepository,
     private val marketDataRepository: MarketDataRepository,
     private val prefs: WealthPreferences
 ) : ViewModel() {
+
+    private val _nifty50Prices = MutableStateFlow<AssetPrices?>(null)
+    val nifty50Prices: StateFlow<AssetPrices?> = _nifty50Prices.asStateFlow()
+
+    init {
+        fetchNifty50()
+    }
+
+    private fun fetchNifty50() {
+        viewModelScope.launch(Dispatchers.IO) {
+            val prices = marketDataRepository.fetchStockPrice("^NSEI", null)
+            if (prices != null) {
+                _nifty50Prices.value = prices
+            }
+        }
+    }
 
     val holdings: StateFlow<List<HoldingEntity>> = repository.getAllHoldings()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
@@ -145,12 +163,19 @@ class WealthTrackerViewModel(
     val autoSnapshotDayOfMonth: StateFlow<Int> = prefs.autoSnapshotDayOfMonth
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 1)
 
+    val includeRetirementInTotal: StateFlow<Boolean> = prefs.includeRetirementInTotal
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
+
     fun updateAutoSnapshotEnabled(enabled: Boolean) {
         viewModelScope.launch { prefs.updateAutoSnapshotEnabled(enabled) }
     }
 
     fun updateAutoSnapshotDayOfMonth(day: Int) {
         viewModelScope.launch { prefs.updateAutoSnapshotDayOfMonth(day) }
+    }
+
+    fun toggleIncludeRetirementInTotal() {
+        viewModelScope.launch { prefs.updateIncludeRetirementInTotal(!includeRetirementInTotal.value) }
     }
 
     /** Tracks if the "pre-fill from latest snapshot" operation is loading. */
@@ -238,6 +263,7 @@ class WealthTrackerViewModel(
             _isSyncing.value = true
             val startTime = System.currentTimeMillis()
             try {
+                fetchNifty50()
                 // FIX #1: Use the already-subscribed `holdings` StateFlow directly.
                 // The previous code called .stateIn(viewModelScope).value on a cold Flow,
                 // which always returned an empty list before the first DB emission arrived.
@@ -245,6 +271,10 @@ class WealthTrackerViewModel(
                 val allHoldingsSynced = currentHoldings.isNotEmpty() && currentHoldings.all { it.latestPrice > 0.0 }
                 var skippedCount = 0
                 for (holding in currentHoldings) {
+                    if (holding.isManual) {
+                        skippedCount++
+                        continue
+                    }
                     if (allHoldingsSynced && MarketDataRepository.shouldSkipSync(holding.lastUpdatedAt)) {
                         skippedCount++
                         continue

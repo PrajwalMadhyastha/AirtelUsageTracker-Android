@@ -106,9 +106,10 @@ class MarketDataRepository private constructor() {
             else -> ""
         }
         val symbol = "$ticker$suffix"
+        val encodedSymbol = symbol.replace("^", "%5E")
 
         return try {
-            val response = service.getYahooChart("https://query2.finance.yahoo.com/v8/finance/chart/$symbol")
+            val response = service.getYahooChart("https://query2.finance.yahoo.com/v8/finance/chart/$encodedSymbol")
             val meta = response.chart?.result?.firstOrNull()?.meta
             if (meta?.regularMarketPrice != null) {
                 AssetPrices(meta.regularMarketPrice, meta.chartPreviousClose ?: meta.regularMarketPrice)

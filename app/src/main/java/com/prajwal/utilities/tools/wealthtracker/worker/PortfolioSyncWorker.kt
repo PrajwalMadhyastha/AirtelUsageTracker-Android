@@ -23,6 +23,8 @@ class PortfolioSyncWorker(
             val holdings = holdingsDao.getAllHoldings().first()
 
             for (holding in holdings) {
+                if (holding.isManual) continue
+
                 if (holding.latestPrice > 0.0 && MarketDataRepository.shouldSkipSync(holding.lastUpdatedAt)) {
                     continue
                 }
@@ -61,12 +63,14 @@ class PortfolioSyncWorker(
                         var debtInv = 0.0
                         var silverInv = 0.0
                         var reitsInv = 0.0
+                        var retirementInv = 0.0
                         
                         var equityCur = 0.0
                         var goldCur = 0.0
                         var debtCur = 0.0
                         var silverCur = 0.0
                         var reitsCur = 0.0
+                        var retirementCur = 0.0
 
                         for (h in updatedHoldings) {
                             val cur = h.unitsHeld * h.latestPrice
@@ -77,6 +81,7 @@ class PortfolioSyncWorker(
                                 "Debt" -> { debtInv += inv; debtCur += cur }
                                 "Silver" -> { silverInv += inv; silverCur += cur }
                                 "REITs" -> { reitsInv += inv; reitsCur += cur }
+                                "Retirement" -> { retirementInv += inv; retirementCur += cur }
                             }
                         }
                         
@@ -87,11 +92,13 @@ class PortfolioSyncWorker(
                             debtInvested = debtInv,
                             silverInvested = silverInv,
                             reitsInvested = reitsInv,
+                            retirementInvested = retirementInv,
                             equityCurrent = equityCur,
                             goldCurrent = goldCur,
                             debtCurrent = debtCur,
                             silverCurrent = silverCur,
-                            reitsCurrent = reitsCur
+                            reitsCurrent = reitsCur,
+                            retirementCurrent = retirementCur
                         )
                         wealthDao.insertSnapshot(newSnapshot)
                     }

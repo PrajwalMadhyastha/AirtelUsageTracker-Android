@@ -56,6 +56,8 @@ fun WealthTrackerScreen(
     val holdingsSortAscending by viewModel.holdingsSortAscending.collectAsState()
     val autoSnapshotEnabled by viewModel.autoSnapshotEnabled.collectAsState()
     val autoSnapshotDayOfMonth by viewModel.autoSnapshotDayOfMonth.collectAsState()
+    val includeRetirementInTotal by viewModel.includeRetirementInTotal.collectAsState()
+    val nifty50Prices by viewModel.nifty50Prices.collectAsState()
     var selectedTab by remember { mutableStateOf(WealthTab.PORTFOLIO) }
 
     val isBiometricEnabled by viewModel.isBiometricEnabled.collectAsState()
@@ -346,6 +348,7 @@ fun WealthTrackerScreen(
                     searchResults = searchResults,
                     sortOption = holdingsSortOption,
                     sortAscending = holdingsSortAscending,
+                    nifty50Prices = nifty50Prices,
                     onSortOptionChanged = viewModel::onSortChipClicked,
                     onSearchQueryChanged = viewModel::updateSearchQuery,
                     onAddHolding = viewModel::addHolding,
@@ -364,6 +367,9 @@ fun WealthTrackerScreen(
                     holdings = holdings,
                     transactions = transactions,
                     isSyncing = isSyncing,
+                    includeRetirement = includeRetirementInTotal,
+                    nifty50Prices = nifty50Prices,
+                    onToggleIncludeRetirement = viewModel::toggleIncludeRetirementInTotal,
                     onSyncNow = {
                         viewModel.syncPricesNow { msg ->
                             Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
@@ -378,7 +384,8 @@ fun WealthTrackerScreen(
                 WealthTab.REPORTS -> ReportsTab(
                     snapshots = snapshots,
                     snapshotsChronological = snapshotsChronological,
-                    transactions = transactions
+                    transactions = transactions,
+                    includeRetirement = includeRetirementInTotal
                 )
 
                 WealthTab.MILESTONES -> MilestonesTab(

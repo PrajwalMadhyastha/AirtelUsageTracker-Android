@@ -38,6 +38,7 @@ import kotlin.math.abs
 import androidx.compose.material3.pulltorefresh.PullToRefreshContainer
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import com.prajwal.utilities.tools.wealthtracker.data.network.AssetPrices
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -46,6 +47,9 @@ fun PortfolioTab(
     holdings: List<HoldingEntity>,
     transactions: List<com.prajwal.utilities.tools.wealthtracker.data.db.TransactionEntity>,
     isSyncing: Boolean,
+    includeRetirement: Boolean,
+    nifty50Prices: AssetPrices? = null,
+    onToggleIncludeRetirement: () -> Unit,
     onSyncNow: () -> Unit,
     onSave: (AssetSnapshotEntity) -> Unit,
     onDelete: (AssetSnapshotEntity) -> Unit
@@ -60,6 +64,7 @@ fun PortfolioTab(
     val dbHoldings = holdings.filter { it.assetClass == "Debt" }
     val slHoldings = holdings.filter { it.assetClass == "Silver" }
     val rtHoldings = holdings.filter { it.assetClass == "REITs" }
+    val retHoldings = holdings.filter { it.assetClass == "Retirement" }
 
     fun calcInv(list: List<HoldingEntity>) = list.sumOf { it.investedAmount }
     fun calcCur(list: List<HoldingEntity>) = list.sumOf { 
@@ -71,9 +76,10 @@ fun PortfolioTab(
     val dbInv = calcInv(dbHoldings); val dbCur = calcCur(dbHoldings)
     val slInv = calcInv(slHoldings); val slCur = calcCur(slHoldings)
     val rtInv = calcInv(rtHoldings); val rtCur = calcCur(rtHoldings)
+    val retInv = calcInv(retHoldings); val retCur = calcCur(retHoldings)
 
-    val totalInv = eqInv + gdInv + dbInv + slInv + rtInv
-    val totalCur = eqCur + gdCur + dbCur + slCur + rtCur
+    val totalInv = eqInv + gdInv + dbInv + slInv + rtInv + if (includeRetirement) retInv else 0.0
+    val totalCur = eqCur + gdCur + dbCur + slCur + rtCur + if (includeRetirement) retCur else 0.0
     val gain = totalCur - totalInv
     val gainPositive = gain >= 0
 
@@ -131,6 +137,22 @@ fun PortfolioTab(
         contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
+        item {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                horizontalArrangement = Arrangement.End,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("Include PF/NPS", style = MaterialTheme.typography.labelMedium)
+                Spacer(Modifier.width(8.dp))
+                Switch(
+                    checked = includeRetirement,
+                    onCheckedChange = { onToggleIncludeRetirement() },
+                    modifier = Modifier.height(24.dp)
+                )
+            }
+        }
+
         // ── Live summary card ─────────────
         item {
             Card(
@@ -247,14 +269,20 @@ fun PortfolioTab(
             }
         }
 
+        // ── NIFTY 50 Market Index card ─────────────
+        item {
+            Nifty50Card(prices = nifty50Prices)
+        }
+
         // ── Asset Breakdown ───────────────────────────────────────────────
         item {
-            val assets = listOf(
+            val assets = mutableListOf(
                 "Equity" to Pair(eqInv, eqCur),
                 "Gold" to Pair(gdInv, gdCur),
                 "Debt" to Pair(dbInv, dbCur),
                 "Silver" to Pair(slInv, slCur),
-                "REITs" to Pair(rtInv, rtCur)
+                "REITs" to Pair(rtInv, rtCur),
+                "Retirement" to Pair(retInv, retCur)
             ).filter { it.second.first > 0 || it.second.second > 0 }
             
             if (assets.isNotEmpty()) {
@@ -311,7 +339,8 @@ fun PortfolioTab(
                             goldInvested = gdInv, goldCurrent = gdCur,
                             debtInvested = dbInv, debtCurrent = dbCur,
                             silverInvested = slInv, silverCurrent = slCur,
-                            reitsInvested = rtInv, reitsCurrent = rtCur
+                            reitsInvested = rtInv, reitsCurrent = rtCur,
+                            retirementInvested = retInv, retirementCurrent = retCur
                         )
                     )
                     justSaved = true
@@ -362,6 +391,7 @@ fun PortfolioTab(
             items(snapshots, key = { it.id }) { snapshot ->
                 SnapshotHistoryCard(
                     snapshot = snapshot,
+                    includeRetirement = includeRetirement,
                     onDelete = { snapshotToDelete = snapshot }
                 )
             }
@@ -438,11 +468,16 @@ private fun AssetBreakdownCard(assets: List<Pair<String, Pair<Double, Double>>>)
 @Composable
 private fun SnapshotHistoryCard(
     snapshot: AssetSnapshotEntity,
+    includeRetirement: Boolean,
     onDelete: () -> Unit
 ) {
     var expanded by remember { mutableStateOf(false) }
     val fmt = SimpleDateFormat("dd MMM yyyy, hh:mm a", Locale.getDefault())
-    val gain = snapshot.totalGainLoss
+    
+    val totalInv = snapshot.getTotalInvested(includeRetirement)
+    val totalCur = snapshot.getTotalCurrent(includeRetirement)
+    val gain = totalCur - totalInv
+    val gainPct = if (totalInv > 0) (gain / totalInv) * 100 else 0.0
     val gainPositive = gain >= 0
 
     Card(
@@ -464,12 +499,12 @@ private fun SnapshotHistoryCard(
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Text(
-                        MilestoneCalculator.formatInrExact(snapshot.totalCurrent),
+                        MilestoneCalculator.formatInrExact(totalCur),
                         style = MaterialTheme.typography.titleSmall,
                         fontWeight = FontWeight.Bold
                     )
                     Text(
-                        "${if (gainPositive) "+" else "-"}${MilestoneCalculator.formatInrExact(abs(gain))} (${String.format("%.1f", snapshot.totalGainLossPct)}%)",
+                        "${if (gainPositive) "+" else "-"}${MilestoneCalculator.formatInrExact(abs(gain))} (${String.format("%.1f", gainPct)}%)",
                         style = MaterialTheme.typography.bodySmall,
                         color = if (gainPositive) MaterialTheme.colorScheme.primary
                         else MaterialTheme.colorScheme.error
@@ -499,7 +534,8 @@ private fun SnapshotHistoryCard(
                     "Gold" to Pair(snapshot.goldInvested, snapshot.goldCurrent),
                     "Debt" to Pair(snapshot.debtInvested, snapshot.debtCurrent),
                     "Silver" to Pair(snapshot.silverInvested, snapshot.silverCurrent),
-                    "REITs" to Pair(snapshot.reitsInvested, snapshot.reitsCurrent)
+                    "REITs" to Pair(snapshot.reitsInvested, snapshot.reitsCurrent),
+                    "Retirement" to Pair(snapshot.retirementInvested, snapshot.retirementCurrent)
                 )
                 assets.forEach { (name, values) ->
                     val (inv, cur) = values
@@ -518,6 +554,85 @@ private fun SnapshotHistoryCard(
                         }
                     }
                 }
+            }
+        }
+    }
+}
+
+@Composable
+fun Nifty50Card(
+    prices: AssetPrices?,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+        shape = RoundedCornerShape(12.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = MaterialTheme.colorScheme.primaryContainer,
+                    modifier = Modifier.size(36.dp)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Text(
+                            "📈",
+                            style = MaterialTheme.typography.titleMedium
+                        )
+                    }
+                }
+                Spacer(Modifier.width(12.dp))
+                Column {
+                    Text(
+                        "NIFTY 50",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        "Market Index",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
+            if (prices != null && prices.latestPrice > 0) {
+                val dayChange = prices.latestPrice - prices.previousClosePrice
+                val dayChangePct = if (prices.previousClosePrice > 0) (dayChange / prices.previousClosePrice) * 100 else 0.0
+                val isPositive = dayChange >= 0
+                val color = if (isPositive) Color(0xFF16A34A) else MaterialTheme.colorScheme.error
+                val sign = if (isPositive) "+" else "-"
+
+                Column(horizontalAlignment = Alignment.End) {
+                    Text(
+                        "%.2f".format(prices.latestPrice),
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        "$sign${"%.2f".format(kotlin.math.abs(dayChange))} (${"%.2f".format(kotlin.math.abs(dayChangePct))}%)",
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = color
+                    )
+                }
+            } else {
+                Text(
+                    "Tap Sync Live to update",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
         }
     }

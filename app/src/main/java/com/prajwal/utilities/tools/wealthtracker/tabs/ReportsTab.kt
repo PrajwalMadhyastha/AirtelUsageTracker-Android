@@ -30,13 +30,14 @@ import java.util.Locale
 import kotlin.math.min
 import kotlin.math.pow
 
-// Color palette for the 5 asset classes
+// Color palette for the 6 asset classes
 private val assetColors = listOf(
     Color(0xFF6366F1), // Equity — indigo
     Color(0xFFF59E0B), // Gold — amber
     Color(0xFF10B981), // Debt — emerald
     Color(0xFF94A3B8), // Silver — slate
-    Color(0xFFEC4899)  // REITs — pink
+    Color(0xFFEC4899), // REITs — pink
+    Color(0xFF06B6D4)  // Retirement — cyan
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -44,7 +45,8 @@ private val assetColors = listOf(
 fun ReportsTab(
     snapshots: List<AssetSnapshotEntity>,          // newest-first (for latest diversification)
     snapshotsChronological: List<AssetSnapshotEntity>,  // oldest-first (for growth chart)
-    transactions: List<com.prajwal.utilities.tools.wealthtracker.data.db.TransactionEntity>
+    transactions: List<com.prajwal.utilities.tools.wealthtracker.data.db.TransactionEntity>,
+    includeRetirement: Boolean
 ) {
     if (snapshots.isEmpty()) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -68,26 +70,29 @@ fun ReportsTab(
 
     val latest = snapshots.first()
     val oldest = snapshotsChronological.first()
-    val allAssetClasses = latest.toAssetClasses()
+    val allAssetClasses = latest.toAssetClasses(includeRetirement)
+
+    val totalInvested = latest.getTotalInvested(includeRetirement)
+    val totalCurrent = latest.getTotalCurrent(includeRetirement)
 
     // FIX #23: CAGR / annualised return calculation
     val durationMs = latest.recordedAt - oldest.recordedAt
     val durationYears = durationMs / (365.25 * 24.0 * 3600.0 * 1000.0)
-    val absoluteReturnPct = if (latest.totalInvested > 0)
-        ((latest.totalCurrent - latest.totalInvested) / latest.totalInvested) * 100.0
+    val absoluteReturnPct = if (totalInvested > 0)
+        ((totalCurrent - totalInvested) / totalInvested) * 100.0
     else 0.0
-    val cagr: Double? = if (durationYears >= 1.0 && latest.totalInvested > 0)
-        ((latest.totalCurrent / latest.totalInvested).pow(1.0 / durationYears) - 1.0) * 100.0
+    val cagr: Double? = if (durationYears >= 1.0 && totalInvested > 0)
+        ((totalCurrent / totalInvested).pow(1.0 / durationYears) - 1.0) * 100.0
     else null
 
     val overallXirr = if (transactions.isNotEmpty()) {
-        com.prajwal.utilities.tools.wealthtracker.data.XirrCalculator.calculateXirr(transactions, latest.totalCurrent) * 100.0
+        com.prajwal.utilities.tools.wealthtracker.data.XirrCalculator.calculateXirr(transactions, totalCurrent) * 100.0
     } else 0.0
 
     // Toggle: show Invested or Current value breakdown in the donut
     var showInvested by remember { mutableStateOf(false) }
     val assetClasses = allAssetClasses.filter { if (showInvested) it.invested > 0 else it.current > 0 }
-    val totalForPct = if (showInvested) latest.totalInvested else latest.totalCurrent
+    val totalForPct = if (showInvested) totalInvested else totalCurrent
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -331,8 +336,8 @@ fun ReportsTab(
                             )
                         }
                     } else {
-                        val investedValues = snapshotsChronological.map { it.totalInvested.toFloat() }
-                        val currentValues = snapshotsChronological.map { it.totalCurrent.toFloat() }
+                        val investedValues = snapshotsChronological.map { it.getTotalInvested(includeRetirement).toFloat() }
+                        val currentValues = snapshotsChronological.map { it.getTotalCurrent(includeRetirement).toFloat() }
                         val dates = snapshotsChronological.map { it.recordedAt }
 
                         GrowthLineChart(
